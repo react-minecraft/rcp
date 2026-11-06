@@ -1,0 +1,102 @@
+name: Build
+
+on:
+
+  push:
+    branches: [ "**" ]
+
+  pull_request: { }
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+
+env:
+  TITLE: "React RCP"
+  JARS: "build/libs/react-inference-rcp-*.jar"
+  PUBLISH: ${{ github.event_name == 'push' && github.ref_name == github.event.repository.default_branch }}
+  REACT_RELEASE: ${{ github.event_name == 'push' && github.ref_name == github.event.repository.default_branch && contains(github.event.head_commit.message, '[release]') }}
+  GIT_BRANCH: ${{ github.head_ref || github.ref_name }}
+  GIT_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        fetch-depth: 0
+
+    - name: Set up JDK 21
+      uses: actions/setup-java@v6
+      with:
+        java-version: '21'
+        distribution: 'temurin'
+
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@v6
+
+    - name: Grant execute permission
+      run: chmod +x gradlew
+
+    - name: Build
+      run: ./gradlew build
+
+    - name: Collect jars
+      id: dist
+      run: |
+        version=$(grep '^version=' gradle.properties | cut -d= -f2)
+        if [ "$REACT_RELEASE" = "true" ]; then
+          if git rev-parse -q --verify "refs/tags/v$version" >/dev/null; then
+            echo "::error::v$version is already released, raise the version in gradle.properties"
+            exit 1
+          fi
+          build="$version"
+        else
+          build="$version-${GIT_COMMIT::7}"
+        fi
+        mkdir dist
+        cp $JARS dist/
+        echo "version=$version" >> "$GITHUB_OUTPUT"
+        echo "build=$build" >> "$GITHUB_OUTPUT"
+        echo "api=$(grep '^api-version:' src/main/resources/rcp-metadata.yml | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v7
+      with:
+        name: react-artifacts
+        path: dist/*.jar
+        if-no-files-found: error
+
+    - name: Sign checksums
+      if: env.PUBLISH == 'true'
+      env:
+        SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+      run: |
+        channel=$([ "$REACT_RELEASE" = "true" ] && echo release || echo nightly)
+        java .github/scripts/Checksums.java "$TITLE" "${{ steps.dist.outputs.build }}" "$channel" \
+          "${GIT_COMMIT::7}" "${{ steps.dist.outputs.api }}" dist/*.jar
+
+    - name: Publish release
+      if: env.REACT_RELEASE == 'true'
+      env:
+        GH_TOKEN: ${{ github.token }}
+        VERSION: ${{ steps.dist.outputs.version }}
+      run: |
+        bash .github/scripts/release-notes.sh > notes.md
+        gh release create "v$VERSION" dist/* --target "$GITHUB_SHA" --latest \
+          --title "$TITLE $VERSION" --notes-file notes.md
+
+    - name: Publish nightly
+      if: env.PUBLISH == 'true' && env.REACT_RELEASE != 'true'
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        gh release delete nightly --cleanup-tag --yes || true
+        gh release create nightly dist/* --target "$GITHUB_SHA" --prerelease \
+          --title "$TITLE nightly" \
+          --notes "Сборка \`${GIT_COMMIT::7}\` из ветки \`$GIT_BRANCH\`: $(git log -1 --format=%s)"

@@ -1,0 +1,11 @@
+#
+# React RCP - the React models and the connection to www.react-ac.space
+#
+
+# Vector Preview
+
+# How many ticks after a hit the player counts as fighting
+combat-ticks: 64
+
+# Не меняйте / Do not change
+config-version: 1

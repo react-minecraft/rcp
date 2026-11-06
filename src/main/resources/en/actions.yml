@@ -1,0 +1,38 @@
+#
+# React RCP - the React models and the connection to www.react-ac.space
+#
+
+# The same actions as in the plugin's actions.yml: [msg], [bar], [title], [sound]...
+
+# /react link
+link:
+
+  # While the code is checked
+  checking:
+    - "[msg] <b><gradient:#eb2544:#ff3655>⚡ ʀᴇᴀᴄᴛ</gradient></b> <gray>»</gray> <gray>Checking the code..."
+
+  # While the link is requested
+  requesting:
+    - "[msg] <b><gradient:#eb2544:#ff3655>⚡ ʀᴇᴀᴄᴛ</gradient></b> <gray>»</gray> <gray>Getting a link..."
+
+  # The link to approve. %url% - the link, %code% - the code, %minutes% - how long it works
+  open:
+    - "[msg] <b><gradient:#eb2544:#ff3655>⚡ ʀᴇᴀᴄᴛ</gradient></b> <gray>»</gray> <gray>Open the <white><u><click:open_url:'%url%'>link</click></u></white> and approve this server"
+    - "[msg] <b><gradient:#eb2544:#ff3655>⚡ ʀᴇᴀᴄᴛ</gradient></b> <gray>»</gray> <gray>Code <white>%code%</white> · the link works for %minutes% min. Waiting for approval..."
+
+  # The server is linked. %server% - the server name, %models% - the enabled models
+  linked:
+    - "[msg] <b><gradient:#eb2544:#ff3655>⚡ ʀᴇᴀᴄᴛ</gradient></b> <gray>»</gray> <white>Server <color:#11ff11>%server%</color> linked ✔ <gray>(%models%)"
+    - "[sound] entity.player.levelup;1.0;1.0"
+
+  # Linking failed. %reason% - why
+  failed:
+    - "[msg] <b><gradient:#eb2544:#ff3655>⚡ ʀᴇᴀᴄᴛ</gradient></b> <gray>»</gray> <white>Could not link <color:#ff1111>✘ <gray>%reason%"
+    - "[sound] entity.creeper.hurt;1.0;1.0"
+
+  # /react link check. %server% - the server name, %models% - the enabled models
+  status:
+    - "[msg] <b><gradient:#eb2544:#ff3655>⚡ ʀᴇᴀᴄᴛ</gradient></b> <gray>»</gray> <white>Server <color:#11ff11>%server%</color> linked ✔ <gray>(%models%)"
+
+# Не меняйте / Do not change
+config-version: 1

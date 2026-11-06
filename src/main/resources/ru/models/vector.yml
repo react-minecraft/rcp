@@ -1,0 +1,11 @@
+#
+# React RCP - модели React и подключение к www.react-ac.space
+#
+
+# Vector Preview
+
+# Сколько тиков после удара игрок считается в бою
+combat-ticks: 64
+
+# Не меняйте / Do not change
+config-version: 1

@@ -1,0 +1,14 @@
+#
+# React RCP - модели React и подключение к www.react-ac.space
+#
+
+timeouts:
+
+  # Сколько ждать соединения с сайтом
+  connect: 10s
+
+  # Сколько ждать ответа на один запрос
+  call: 10s
+
+# Не меняйте / Do not change
+config-version: 1

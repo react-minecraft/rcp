@@ -1,0 +1,38 @@
+#
+# React RCP - модели React и подключение к www.react-ac.space
+#
+
+# Действия те же, что в actions.yml плагина: [msg], [bar], [title], [sound]...
+
+# /react link
+link:
+
+  # Пока проверяется код
+  checking:
+    - "[msg] <b><gradient:#eb2544:#ff3655>⚡ ʀᴇᴀᴄᴛ</gradient></b> <gray>»</gray> <gray>Проверяем код..."
+
+  # Пока запрашивается ссылка
+  requesting:
+    - "[msg] <b><gradient:#eb2544:#ff3655>⚡ ʀᴇᴀᴄᴛ</gradient></b> <gray>»</gray> <gray>Получаем ссылку..."
+
+  # Ссылка для подтверждения. %url% - ссылка, %code% - код, %minutes% - сколько минут она действует
+  open:
+    - "[msg] <b><gradient:#eb2544:#ff3655>⚡ ʀᴇᴀᴄᴛ</gradient></b> <gray>»</gray> <gray>Откройте <white><u><click:open_url:'%url%'>ссылку</click></u></white> и подтвердите сервер"
+    - "[msg] <b><gradient:#eb2544:#ff3655>⚡ ʀᴇᴀᴄᴛ</gradient></b> <gray>»</gray> <gray>Код <white>%code%</white> · ссылка действует %minutes% мин. Ждём подтверждения..."
+
+  # Сервер подключён. %server% - название сервера, %models% - включённые модели
+  linked:
+    - "[msg] <b><gradient:#eb2544:#ff3655>⚡ ʀᴇᴀᴄᴛ</gradient></b> <gray>»</gray> <white>Сервер <color:#11ff11>%server%</color> подключён ✔ <gray>(%models%)"
+    - "[sound] entity.player.levelup;1.0;1.0"
+
+  # Не удалось подключить. %reason% - причина
+  failed:
+    - "[msg] <b><gradient:#eb2544:#ff3655>⚡ ʀᴇᴀᴄᴛ</gradient></b> <gray>»</gray> <white>Не удалось подключить <color:#ff1111>✘ <gray>%reason%"
+    - "[sound] entity.creeper.hurt;1.0;1.0"
+
+  # /react link check. %server% - название сервера, %models% - включённые модели
+  status:
+    - "[msg] <b><gradient:#eb2544:#ff3655>⚡ ʀᴇᴀᴄᴛ</gradient></b> <gray>»</gray> <white>Сервер <color:#11ff11>%server%</color> подключён ✔ <gray>(%models%)"
+
+# Не меняйте / Do not change
+config-version: 1

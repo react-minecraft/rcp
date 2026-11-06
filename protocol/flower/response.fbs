@@ -1,0 +1,9 @@
+namespace com.g4vrk.react.inference.model.flower.protocol.schema;
+
+// Flower answers carry no decision threshold: aim-ai.yml alert.threshold decides.
+// The model family and name travel in the X-React-Model-Family and X-React-Model-Name headers.
+table FlowerResponse {
+  cheat_probability:double;
+}
+root_type FlowerResponse;
+file_identifier "GAFR";

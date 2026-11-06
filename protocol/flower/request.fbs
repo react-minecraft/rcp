@@ -1,0 +1,12 @@
+namespace com.g4vrk.react.inference.model.flower.protocol.schema;
+
+// Frame-major float32 rotations, 8 values per frame in this order:
+// x, y, deltaX, deltaY, jerkX, jerkY, gcdErrorX, gcdErrorY.
+// The model family and name travel in the model-family and model-name query parameters.
+table FlowerRequest {
+  token:string;
+  player_name:string;
+  frames:[float];
+}
+root_type FlowerRequest;
+file_identifier "GAFQ";

@@ -1,0 +1,56 @@
+# Compiled class files
+*.class
+
+# Maven/Gradle build folders
+target/
+build/
+.gradle/
+.idea/
+
+
+# IDE folders
+*.iml
+*.ipr
+*.iws
+.vscode/
+
+# Logs
+*.log
+*.log.*
+/logs/
+hs_err_pid*
+replay_pid*
+*.hprof
+*.dmp
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+*.orig
+*.rej
+*.bak
+/tmp/
+/temp/
+/.tmp/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Minecraft specific
+plugins/*.jar
+
+lib/
+
+# Local runServer installations and tool caches, not plugin modules.
+/run/
+.cache/
+.kotlin/
+
+# Local credentials never belong in source control.
+.env
+.env.*
+!.env.example

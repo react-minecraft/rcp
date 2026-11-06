@@ -1,0 +1,11 @@
+#
+# React RCP - модели React и подключение к www.react-ac.space
+#
+
+# Flower Baseline и Flower Ultra
+
+# Сколько новых поворотов камеры между двумя запросами к модели
+step: 10
+
+# Не меняйте / Do not change
+config-version: 1
