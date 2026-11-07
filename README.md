@@ -76,7 +76,7 @@
 4. Jar будет лежать в `build/libs/`
 
 Чтобы проверить свою сборку на сервере, положите jar в `plugins/React/.rcp/providers/` и выключите
-`settings.auto-update` в `plugins/React/.rcp/react-rcp.yml`, иначе плагин скачает релиз поверх.
+`enabled` в `plugins/React/update/rcp/React.yml`, иначе плагин скачает релиз поверх.
 
 ---
 
