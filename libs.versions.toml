@@ -10,6 +10,7 @@ flatbuffers = "25.2.10"
 configurate = "4.2.0"
 actions = "2.1.2"
 schedula = "1.1.0"
+textserializer = "1.0.0"
 
 junit = "6.1.3"
 junit-platform = "6.1.3"
@@ -27,6 +28,7 @@ flatbuffers = { module = "com.google.flatbuffers:flatbuffers-java", version.ref 
 configurate-yaml = { module = "org.spongepowered:configurate-yaml", version.ref = "configurate" }
 actions = { module = "com.github.g4vrk:FunctionalActions", version.ref = "actions" }
 schedula-common = { module = "com.github.g4vrk.Schedula:common", version.ref = "schedula" }
+textserializer-legacy = { module = "com.github.g4vrk.TextSerializer:legacy", version.ref = "textserializer" }
 
 junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }

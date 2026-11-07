@@ -39,6 +39,7 @@ dependencies {
     compileOnly(libs.configurate.yaml)
     compileOnly(libs.actions)
     compileOnly(libs.schedula.common)
+    compileOnly(libs.textserializer.legacy)
 
     compileOnly(libs.lombok)
     annotationProcessor(libs.lombok)

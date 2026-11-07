@@ -2,9 +2,9 @@ package com.g4vrk.react.inference.command;
 
 import com.g4vrk.functionalActions.list.ExecutableActionList;
 import com.g4vrk.functionalActions.parser.ActionParser;
-import com.g4vrk.react.api.rcp.command.RCPCommand;
+import com.g4vrk.react.api.rcp.argument.RCPArgument;
 import com.g4vrk.react.inference.config.ActionsConfig;
-import com.g4vrk.react.inference.model.ModelId;
+import com.g4vrk.react.inference.link.Credential;
 import com.g4vrk.react.inference.server.InferenceServer;
 import com.g4vrk.schedula.task.TickSchedule;
 import com.g4vrk.schedula.task.scheduler.Scheduler;
@@ -12,7 +12,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 import net.kyori.adventure.audience.Audience;
 import org.bukkit.command.CommandSender;
 import org.jetbrains.annotations.NotNull;
@@ -26,20 +25,20 @@ import org.slf4j.Logger;
  *     <li>{@code /react link check} asks the site about the current link</li>
  * </ul>
  */
-public final class LinkCommand implements RCPCommand {
+public final class LinkArgument implements RCPArgument {
 
     /**
-     * Stores a key the site handed out and switches the RCP to it.
+     * Stores a credential the site handed out and switches the RCP to it.
      */
     @FunctionalInterface
-    public interface KeyHandler {
+    public interface CredentialHandler {
 
-        void accept(@NotNull String apiKey) throws Exception;
+        void accept(@NotNull Credential credential) throws Exception;
 
     }
 
     private final Supplier<InferenceServer> server;
-    private final KeyHandler onLinked;
+    private final CredentialHandler onLinked;
     private final Scheduler scheduler;
     private final Logger logger;
 
@@ -49,10 +48,11 @@ public final class LinkCommand implements RCPCommand {
     private ExecutableActionList<? super Audience> linked;
     private ExecutableActionList<? super Audience> failed;
     private ExecutableActionList<? super Audience> status;
+    private ActionsConfig.Texts texts;
 
-    public LinkCommand(
+    public LinkArgument(
             final @NotNull Supplier<InferenceServer> server,
-            final @NotNull KeyHandler onLinked,
+            final @NotNull CredentialHandler onLinked,
             final @NotNull Scheduler scheduler,
             final @NotNull Logger logger
     ) {
@@ -62,18 +62,15 @@ public final class LinkCommand implements RCPCommand {
         this.logger = logger;
     }
 
-    public void reload(final @NotNull ActionParser<Audience> parser, final @NotNull ActionsConfig.Link config) {
-        this.checking = parser.parseAll(config.checking());
-        this.requesting = parser.parseAll(config.requesting());
-        this.open = parser.parseAll(config.open());
-        this.linked = parser.parseAll(config.linked());
-        this.failed = parser.parseAll(config.failed());
-        this.status = parser.parseAll(config.status());
-    }
-
-    @Override
-    public @NotNull String name() {
-        return "link";
+    public void reload(final @NotNull ActionParser<Audience> parser, final @NotNull ActionsConfig config) {
+        final ActionsConfig.Link link = config.link();
+        this.checking = parser.parseAll(link.checking());
+        this.requesting = parser.parseAll(link.requesting());
+        this.open = parser.parseAll(link.open());
+        this.linked = parser.parseAll(link.linked());
+        this.failed = parser.parseAll(link.failed());
+        this.status = parser.parseAll(link.status());
+        this.texts = config.texts();
     }
 
     @Override
@@ -87,9 +84,9 @@ public final class LinkCommand implements RCPCommand {
         if (args.isEmpty()) {
             requesting.run(sender);
             connection = current.connectWithLink(link -> run(sender, open, Map.of(
-                    "%url%", link.url(),
-                    "%code%", link.code(),
-                    "%minutes%", Long.toString(Math.max(1L, link.expiresInSeconds() / 60L)))));
+                    "{url}", link.url(),
+                    "{code}", link.code(),
+                    "{minutes}", Long.toString(Math.max(1L, link.expiresInSeconds() / 60L)))));
         } else {
             checking.run(sender);
             connection = current.connect(args.get(0));
@@ -97,10 +94,10 @@ public final class LinkCommand implements RCPCommand {
         connection.whenComplete((result, failure) -> {
             if (failure != null) {
                 fail(sender, String.valueOf(failure.getMessage()));
-            } else if (result.apiKey() == null) {
+            } else if (result.credential() == null) {
                 fail(sender, result.detail());
             } else {
-                finish(sender, result);
+                finish(sender, result.credential(), result);
             }
         });
     }
@@ -117,24 +114,28 @@ public final class LinkCommand implements RCPCommand {
             } else if (result.problem() != null) {
                 fail(sender, result.problem());
             } else {
-                run(sender, status, Map.of("%server%", result.server(), "%models%", describe(result.models())));
+                run(sender, status, Map.of("{server}", result.server(), "{models}", texts.describe(result.models())));
             }
         });
     }
 
-    private void finish(final CommandSender sender, final InferenceServer.ConnectResult result) {
+    private void finish(
+            final CommandSender sender,
+            final Credential credential,
+            final InferenceServer.ConnectResult result
+    ) {
         try {
-            onLinked.accept(result.apiKey());
+            onLinked.accept(credential);
         } catch (final Exception exception) {
             logger.error("Could not save the link", exception);
             fail(sender, String.valueOf(exception.getMessage()));
             return;
         }
-        run(sender, linked, Map.of("%server%", result.server(), "%models%", result.modelNames()));
+        run(sender, linked, Map.of("{server}", result.server(), "{models}", texts.describe(result.models())));
     }
 
     private void fail(final CommandSender sender, final String reason) {
-        run(sender, failed, Map.of("%reason%", reason));
+        run(sender, failed, Map.of("{reason}", reason));
     }
 
     private void run(
@@ -149,15 +150,6 @@ public final class LinkCommand implements RCPCommand {
             }
             return replaced;
         }), TickSchedule.instant());
-    }
-
-    private static String describe(final Map<ModelId, Boolean> models) {
-        if (models.isEmpty()) {
-            return "-";
-        }
-        return models.entrySet().stream()
-                .map(entry -> entry.getKey().displayName() + (entry.getValue() ? " ✔" : " ✘"))
-                .collect(Collectors.joining(", "));
     }
 
 }

@@ -15,24 +15,46 @@ link:
   requesting:
     - "[msg] <b><gradient:#eb2544:#ff3655>⚡ ʀᴇᴀᴄᴛ</gradient></b> <gray>»</gray> <gray>Получаем ссылку..."
 
-  # Ссылка для подтверждения. %url% - ссылка, %code% - код, %minutes% - сколько минут она действует
+  # Ссылка для подтверждения. {url} - ссылка, {code} - код, {minutes} - сколько минут она действует
   open:
-    - "[msg] <b><gradient:#eb2544:#ff3655>⚡ ʀᴇᴀᴄᴛ</gradient></b> <gray>»</gray> <gray>Откройте <white><u><click:open_url:'%url%'>ссылку</click></u></white> и подтвердите сервер"
-    - "[msg] <b><gradient:#eb2544:#ff3655>⚡ ʀᴇᴀᴄᴛ</gradient></b> <gray>»</gray> <gray>Код <white>%code%</white> · ссылка действует %minutes% мин. Ждём подтверждения..."
+    - "[msg] <b><gradient:#eb2544:#ff3655>⚡ ʀᴇᴀᴄᴛ</gradient></b> <gray>»</gray> <gray>Откройте <white><u><click:open_url:'{url}'>ссылку</click></u></white> и подтвердите сервер"
+    - "[msg] <b><gradient:#eb2544:#ff3655>⚡ ʀᴇᴀᴄᴛ</gradient></b> <gray>»</gray> <gray>Код <white>{code}</white> · ссылка действует {minutes} мин. Ждём подтверждения..."
 
-  # Сервер подключён. %server% - название сервера, %models% - включённые модели
+  # Сервер подключён. {server} - название сервера, {models} - включённые модели
   linked:
-    - "[msg] <b><gradient:#eb2544:#ff3655>⚡ ʀᴇᴀᴄᴛ</gradient></b> <gray>»</gray> <white>Сервер <color:#11ff11>%server%</color> подключён ✔ <gray>(%models%)"
+    - "[msg] <b><gradient:#eb2544:#ff3655>⚡ ʀᴇᴀᴄᴛ</gradient></b> <gray>»</gray> <white>Сервер <color:#11ff11>{server}</color> подключён ✔ <gray>({models})"
     - "[sound] entity.player.levelup;1.0;1.0"
 
-  # Не удалось подключить. %reason% - причина
+  # Не удалось подключить. {reason} - причина
   failed:
-    - "[msg] <b><gradient:#eb2544:#ff3655>⚡ ʀᴇᴀᴄᴛ</gradient></b> <gray>»</gray> <white>Не удалось подключить <color:#ff1111>✘ <gray>%reason%"
+    - "[msg] <b><gradient:#eb2544:#ff3655>⚡ ʀᴇᴀᴄᴛ</gradient></b> <gray>»</gray> <white>Не удалось подключить <color:#ff1111>✘ <gray>{reason}"
     - "[sound] entity.creeper.hurt;1.0;1.0"
 
-  # /react link check. %server% - название сервера, %models% - включённые модели
+  # /react link check. {server} - название сервера, {models} - включённые модели
   status:
-    - "[msg] <b><gradient:#eb2544:#ff3655>⚡ ʀᴇᴀᴄᴛ</gradient></b> <gray>»</gray> <white>Сервер <color:#11ff11>%server%</color> подключён ✔ <gray>(%models%)"
+    - "[msg] <b><gradient:#eb2544:#ff3655>⚡ ʀᴇᴀᴄᴛ</gradient></b> <gray>»</gray> <white>Сервер <color:#11ff11>{server}</color> подключён ✔ <gray>({models})"
+
+# Тексты для {models}, {reason} и плейсхолдера %react_model% (без тегов: PlaceholderAPI выводит их как есть)
+texts:
+
+  not-linked: "Не подключён: /react link"
+  unavailable: "Нет моделей"
+
+  # Одна модель в {models}. {model} - название модели
+  model-enabled: "{model} ✔"
+  model-disabled: "{model} ✘"
+  separator: ", "
+
+  # {models}, когда на аккаунте нет моделей
+  none: "-"
+
+  # {reason}
+  reasons:
+    not-linked: "сервер не подключён, введите /react link"
+    replaced: "запущен новый /react link"
+    expired: "ссылка истекла, введите /react link ещё раз"
+    # Сайт ответил ошибкой. {status} - код ответа
+    http: "сайт ответил {status}"
 
 # Не меняйте / Do not change
-config-version: 1
+config-version: 2

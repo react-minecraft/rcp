@@ -26,14 +26,14 @@ public final class FlowerCodec {
         final float[] values = new float[frames.length * FEATURES_PER_FRAME];
         int index = 0;
         for (final Rotation frame : frames) {
-            index = put(values, index, frame.getX());
-            index = put(values, index, frame.getY());
-            index = put(values, index, frame.getDeltaX());
-            index = put(values, index, frame.getDeltaY());
-            index = put(values, index, frame.getJerkX());
-            index = put(values, index, frame.getJerkY());
-            index = put(values, index, frame.getGcdErrorX());
-            index = put(values, index, frame.getGcdErrorY());
+            index = put(values, index, frame.x());
+            index = put(values, index, frame.y());
+            index = put(values, index, frame.deltaX());
+            index = put(values, index, frame.deltaY());
+            index = put(values, index, frame.jerkX());
+            index = put(values, index, frame.jerkY());
+            index = put(values, index, frame.gcdErrorX());
+            index = put(values, index, frame.gcdErrorY());
         }
         final FlatBufferBuilder builder = new FlatBufferBuilder(64 + values.length * 4);
         final int framesOffset = FlowerRequest.createFramesVector(builder, values);

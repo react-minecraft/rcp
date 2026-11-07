@@ -80,7 +80,7 @@ public final class RequestDispatcher {
         final long epoch = server.requestEpoch();
         final String name = player.name();
         try {
-            server.callAsync(encoder.apply(server.bodyToken()), model.id()).whenComplete((response, failure) -> {
+            server.callAsync(encoder.apply(server.accessToken()), model.id()).whenComplete((response, failure) -> {
                 try {
                     final InferenceResult result = failure == null ? read(name, model, response) : null;
                     if (failure != null) {

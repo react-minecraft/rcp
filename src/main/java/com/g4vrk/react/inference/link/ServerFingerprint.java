@@ -40,8 +40,12 @@ public final class ServerFingerprint {
     }
 
     static byte[] sha256(final @NotNull String value) {
+        return sha256(value.getBytes(StandardCharsets.UTF_8));
+    }
+
+    static byte[] sha256(final byte @NotNull [] value) {
         try {
-            return MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8));
+            return MessageDigest.getInstance("SHA-256").digest(value);
         } catch (final NoSuchAlgorithmException exception) {
             throw new IllegalStateException("SHA-256 is not available", exception);
         }
