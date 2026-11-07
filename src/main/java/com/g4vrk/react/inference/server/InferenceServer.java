@@ -1,6 +1,6 @@
 package com.g4vrk.react.inference.server;
 
-import com.g4vrk.react.api.rcp.RCPApi;
+import com.g4vrk.react.api.rcp.RCPAPI;
 import com.g4vrk.react.inference.config.ActionsConfig;
 import com.g4vrk.react.inference.http.LimitedBodyHandler;
 import com.g4vrk.react.inference.http.model.HttpRequest;
@@ -41,7 +41,7 @@ import org.slf4j.Logger;
  */
 public final class InferenceServer {
 
-    public static final String BASE_URL = RCPApi.API_URL;
+    public static final String BASE_URL = RCPAPI.API_URL;
 
     private static final String MODEL_PATH = "/api/v2/inference/";
     private static final String CHECK_PATH = "/api/v1/auth/check";
