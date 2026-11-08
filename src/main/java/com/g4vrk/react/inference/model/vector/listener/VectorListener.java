@@ -2,7 +2,7 @@ package com.g4vrk.react.inference.model.vector.listener;
 
 import com.g4vrk.react.api.rcp.environment.RCPEnvironment;
 import com.g4vrk.react.api.rcp.player.RCPPlayer;
-import com.g4vrk.react.api.rcp.player.RCPPlayers;
+import com.g4vrk.react.api.rcp.player.registry.RCPPlayerRegistry;
 import com.g4vrk.react.inference.model.vector.service.AimStreamService;
 import com.github.retrooper.packetevents.event.PacketListenerAbstract;
 import com.github.retrooper.packetevents.event.PacketListenerPriority;
@@ -19,7 +19,7 @@ import org.slf4j.Logger;
  */
 public final class VectorListener extends PacketListenerAbstract {
 
-    private final RCPPlayers players;
+    private final RCPPlayerRegistry players;
     private final Logger logger;
     private final AimStreamService service;
 

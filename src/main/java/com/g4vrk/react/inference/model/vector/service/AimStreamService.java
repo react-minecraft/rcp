@@ -2,7 +2,7 @@ package com.g4vrk.react.inference.model.vector.service;
 
 import com.g4vrk.react.api.rcp.environment.RCPEnvironment;
 import com.g4vrk.react.api.rcp.player.RCPPlayer;
-import com.g4vrk.react.api.rcp.player.RCPPlayers;
+import com.g4vrk.react.api.rcp.player.registry.RCPPlayerRegistry;
 import com.g4vrk.react.api.rcp.player.CombatTargets;
 import com.g4vrk.react.inference.model.vector.model.AimFrame;
 import com.g4vrk.react.inference.model.vector.session.AimSession;
@@ -32,7 +32,7 @@ import org.jetbrains.annotations.Nullable;
  */
 public final class AimStreamService {
 
-    private final RCPPlayers players;
+    private final RCPPlayerRegistry players;
     private final EntityTaskRunner entityRunner;
     private final Map<UUID, AimSession> playerData = new ConcurrentHashMap<>();
     private final CopyOnWriteArrayList<Subscription> subscriptions = new CopyOnWriteArrayList<>();
