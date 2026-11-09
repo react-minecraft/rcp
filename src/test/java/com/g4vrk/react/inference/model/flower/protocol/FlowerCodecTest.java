@@ -2,7 +2,6 @@ package com.g4vrk.react.inference.model.flower.protocol;
 
 import com.g4vrk.react.inference.model.flower.protocol.schema.FlowerRequest;
 import com.g4vrk.react.inference.model.flower.protocol.schema.FlowerResponse;
-import com.g4vrk.react.api.rcp.player.Rotation;
 import com.google.flatbuffers.FlatBufferBuilder;
 import java.nio.ByteBuffer;
 import org.junit.jupiter.api.Test;
@@ -16,13 +15,13 @@ class FlowerCodecTest {
 
     @Test
     void writesRotationsInSchemaOrder() {
-        final Rotation rotation = new Rotation(1, 2, 3, 4, 5, 6, 7, 8);
+        final float[] rotation = {1F, 2F, 3F, 4F, 5F, 6F, 7F, 8F};
         final FlowerRequest request = FlowerRequest.getRootAsFlowerRequest(
-                ByteBuffer.wrap(FlowerCodec.encodeRequest(new Rotation[]{rotation}, "Steve", null)));
+                ByteBuffer.wrap(FlowerCodec.encodeRequest(rotation, "Steve", null)));
 
         final float[] values = new float[request.framesLength()];
         for (int i = 0; i < values.length; i++) values[i] = request.frames(i);
-        // x, y, deltaX, deltaY, jerkX, jerkY, gcdErrorX, gcdErrorY
+        // In: pitch, yaw, deltas, jerks, gcd errors. Out: yaw (x) first in every pair.
         assertArrayEquals(new float[]{2, 1, 4, 3, 6, 5, 8, 7}, values);
         assertEquals("Steve", request.playerName());
         assertNull(request.token());
@@ -42,8 +41,8 @@ class FlowerCodecTest {
 
     @Test
     void rejectsNonFiniteRotations() {
-        final Rotation rotation = new Rotation(Float.NaN, 0, 0, 0, 0, 0, 0, 0);
+        final float[] rotation = {Float.NaN, 0F, 0F, 0F, 0F, 0F, 0F, 0F};
         assertThrows(IllegalArgumentException.class,
-                () -> FlowerCodec.encodeRequest(new Rotation[]{rotation}, "Steve", null));
+                () -> FlowerCodec.encodeRequest(rotation, "Steve", null));
     }
 }

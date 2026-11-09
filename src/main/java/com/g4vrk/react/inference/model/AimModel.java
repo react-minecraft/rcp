@@ -1,7 +1,7 @@
 package com.g4vrk.react.inference.model;
 
 import com.g4vrk.react.api.rcp.player.RCPPlayer;
-import com.g4vrk.react.api.rcp.player.Rotation;
+import com.g4vrk.react.api.rcp.player.RotationSample;
 import com.github.retrooper.packetevents.event.PacketListenerCommon;
 import java.util.List;
 import java.util.UUID;
@@ -26,8 +26,11 @@ public interface AimModel {
 
     /**
      * Called on the netty thread after every rotation the plugin recorded for the player.
+     *
+     * <p>{@code sample} holds one rotation laid out as {@link RotationSample} documents; the plugin
+     * reuses it, so copy it to keep the values.</p>
      */
-    default void onRotation(final @NotNull RCPPlayer player, final @NotNull Rotation rotation) {
+    default void onRotation(final @NotNull RCPPlayer player, final float @NotNull [] sample) {
     }
 
     /**

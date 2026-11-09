@@ -3,7 +3,6 @@ package com.g4vrk.react.inference.service;
 import com.g4vrk.react.api.rcp.environment.RCPEnvironment;
 import com.g4vrk.react.api.rcp.event.RCPPlayerListener;
 import com.g4vrk.react.api.rcp.player.RCPPlayer;
-import com.g4vrk.react.api.rcp.player.Rotation;
 import com.g4vrk.react.inference.config.InferenceConfigs;
 import com.g4vrk.react.inference.model.AimModel;
 import com.g4vrk.react.inference.model.AimModels;
@@ -41,7 +40,7 @@ public final class ModelService implements RCPPlayerListener {
         this.vector = new VectorModel(environment, dispatcher, configs.vector().combatTicks());
         this.models = new AimModels(List.of(flowerBaseline, flowerUltra, vector));
 
-        models.packetListeners().forEach(environment::registerPacketListener);
+        models.packetListeners().forEach(environment.listeners()::register);
         environment.listen(this);
     }
 
@@ -60,9 +59,9 @@ public final class ModelService implements RCPPlayerListener {
     }
 
     @Override
-    public void onRotation(final @NotNull RCPPlayer player, final @NotNull Rotation rotation) {
+    public void onRotation(final @NotNull RCPPlayer player, final float @NotNull [] sample) {
         for (final AimModel model : models.all()) {
-            model.onRotation(player, rotation);
+            model.onRotation(player, sample);
         }
     }
 

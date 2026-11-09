@@ -35,6 +35,7 @@ dependencies {
     compileOnly("com.github.react-minecraft.plugin:react-api:${property("reactApiVersion")}")
 
     compileOnly(libs.paper.api)
+    compileOnly(libs.cloud.core)
     compileOnly(libs.packetevents)
     compileOnly(libs.configurate.yaml)
     compileOnly(libs.actions)

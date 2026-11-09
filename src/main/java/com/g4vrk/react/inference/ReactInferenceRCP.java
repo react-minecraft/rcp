@@ -1,18 +1,18 @@
 package com.g4vrk.react.inference;
 
-import com.g4vrk.functionalActions.defaults.DefaultActions;
+import com.g4vrk.functionalActions.defaults.DefaultActionSet;
 import com.g4vrk.functionalActions.parser.ActionParser;
 import com.g4vrk.functionalActions.parser.impl.SimpleActionParser;
 import com.g4vrk.functionalActions.registry.ActionRegistry;
 import com.g4vrk.functionalActions.registry.impl.SimpleActionRegistry;
 import com.g4vrk.react.api.rcp.environment.RCPEnvironment;
 import com.g4vrk.react.api.rcp.provider.RCPProvider;
-import com.g4vrk.react.inference.command.LinkArgument;
+import com.g4vrk.react.inference.command.LinkCommand;
 import com.g4vrk.react.inference.config.InferenceConfigs;
 import com.g4vrk.react.inference.model.AimModels;
 import com.g4vrk.react.inference.service.ConnectionService;
 import com.g4vrk.react.inference.service.ModelService;
-import com.g4vrk.text.LegacySerializers;
+import com.g4vrk.text.LegacySerializerRegistry;
 import net.kyori.adventure.audience.Audience;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -29,14 +29,14 @@ public final class ReactInferenceRCP extends RCPProvider {
 
     private ConnectionService connection;
     private ModelService models;
-    private LinkArgument linkArgument;
+    private LinkCommand linkCommand;
 
     public ReactInferenceRCP(final @NotNull RCPEnvironment environment) {
         super(environment);
         this.environment = environment;
         final ActionRegistry<Audience> registry = new SimpleActionRegistry<>(true);
-        DefaultActions.Adventure.registerDefaults(
-                registry, LegacySerializers.INSTANCE.universalSerializer()::serialize, ";");
+        DefaultActionSet.Adventure.registerDefaults(
+                registry, LegacySerializerRegistry.INSTANCE.universalSerializer()::serialize, ";");
         this.actionParser = new SimpleActionParser<>(registry);
     }
 
@@ -58,10 +58,10 @@ public final class ReactInferenceRCP extends RCPProvider {
         models = new ModelService(environment, connection.server(), configs);
         connection.onReplaced(models::use);
 
-        linkArgument = new LinkArgument(connection::server, connection::link, environment.scheduler(),
+        linkCommand = new LinkCommand(connection::server, connection::link, environment.scheduler(),
                 environment.logger());
-        linkArgument.reload(actionParser, configs.actions());
-        environment.registerArgument("link", linkArgument);
+        linkCommand.reload(actionParser, configs.actions());
+        linkCommand.register(environment.commands());
 
         instance = this;
         connection.refreshStatus();
@@ -71,7 +71,7 @@ public final class ReactInferenceRCP extends RCPProvider {
     public void onReload() throws Exception {
         final InferenceConfigs configs = InferenceConfigs.load(environment.directory(), environment.logger());
         models.reload(configs);
-        linkArgument.reload(actionParser, configs.actions());
+        linkCommand.reload(actionParser, configs.actions());
         connection.reload(configs);
     }
 

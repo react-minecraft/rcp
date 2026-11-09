@@ -2,8 +2,8 @@ package com.g4vrk.react.inference.model.vector.service;
 
 import com.g4vrk.react.api.rcp.environment.RCPEnvironment;
 import com.g4vrk.react.api.rcp.player.RCPPlayer;
-import com.g4vrk.react.api.rcp.player.RCPPlayers;
-import com.g4vrk.react.api.rcp.player.CombatTargets;
+import com.g4vrk.react.api.rcp.player.registry.RCPPlayerRegistry;
+import com.g4vrk.react.api.rcp.player.CombatTarget;
 import com.g4vrk.react.inference.model.vector.model.AimFrame;
 import com.g4vrk.react.inference.model.vector.session.AimSession;
 import com.g4vrk.react.inference.model.vector.session.AimState;
@@ -32,7 +32,7 @@ import org.jetbrains.annotations.Nullable;
  */
 public final class AimStreamService {
 
-    private final RCPPlayers players;
+    private final RCPPlayerRegistry players;
     private final EntityTaskRunner entityRunner;
     private final Map<UUID, AimSession> playerData = new ConcurrentHashMap<>();
     private final CopyOnWriteArrayList<Subscription> subscriptions = new CopyOnWriteArrayList<>();
@@ -173,14 +173,14 @@ public final class AimStreamService {
         }
         final Entity attacked = findSupportedEntity(bukkitPlayer, pendingTarget);
         state.onAttack(attacked == null ? null : attacked.getUniqueId());
-        if (player != null && CombatTargets.isMannequin(attacked)) {
+        if (player != null && CombatTarget.isMannequin(attacked)) {
             player.enterCombat();
         }
     }
 
     private static @Nullable Entity findSupportedEntity(final Player bukkitPlayer, final int entityId) {
         for (final Entity entity : bukkitPlayer.getWorld().getEntities()) {
-            if (entity.getEntityId() == entityId && CombatTargets.isSupported(entity)) {
+            if (entity.getEntityId() == entityId && CombatTarget.isSupported(entity)) {
                 return entity;
             }
         }
@@ -194,7 +194,7 @@ public final class AimStreamService {
         }
         final RCPPlayer targetPlayer = players.get(targetId);
         final Entity target = targetPlayer != null ? targetPlayer.bukkit() : Bukkit.getEntity(targetId);
-        return target != null && CombatTargets.isSupported(target) ? target : null;
+        return target != null && CombatTarget.isSupported(target) ? target : null;
     }
 
     private void recordFrame(final RCPPlayer player, final AimSession data, final AimFrame frame) {

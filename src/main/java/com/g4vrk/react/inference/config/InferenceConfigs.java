@@ -1,7 +1,7 @@
 package com.g4vrk.react.inference.config;
 
 import com.g4vrk.react.api.config.ConfigFile;
-import com.g4vrk.react.api.config.ConfigMigrations;
+import com.g4vrk.react.api.config.ConfigMigrationChain;
 import java.nio.file.Path;
 import java.util.Locale;
 import java.util.regex.Pattern;
@@ -23,7 +23,7 @@ public record InferenceConfigs(
 
     private static final Pattern PERCENT_PLACEHOLDER = Pattern.compile("%([a-z_]+)%");
 
-    private static final ConfigMigrations ACTIONS_MIGRATIONS = ConfigMigrations.builder()
+    private static final ConfigMigrationChain ACTIONS_MIGRATIONS = ConfigMigrationChain.builder()
             .step(root -> { })
             .step(root -> bracePlaceholders(root.node("link")))
             .build();
@@ -32,9 +32,9 @@ public record InferenceConfigs(
             throws ConfigurateException {
         final String language = language();
         return new InferenceConfigs(
-                file(ConnectionConfig.class, directory, language, "connection.yml", logger, ConfigMigrations.none()),
-                file(FlowerConfig.class, directory, language, "models/flower.yml", logger, ConfigMigrations.none()),
-                file(VectorConfig.class, directory, language, "models/vector.yml", logger, ConfigMigrations.none()),
+                file(ConnectionConfig.class, directory, language, "connection.yml", logger, ConfigMigrationChain.none()),
+                file(FlowerConfig.class, directory, language, "models/flower.yml", logger, ConfigMigrationChain.none()),
+                file(VectorConfig.class, directory, language, "models/vector.yml", logger, ConfigMigrationChain.none()),
                 file(ActionsConfig.class, directory, language, "actions.yml", logger, ACTIONS_MIGRATIONS)
         );
     }
@@ -45,7 +45,7 @@ public record InferenceConfigs(
             final String language,
             final String name,
             final Logger logger,
-            final ConfigMigrations migrations
+            final ConfigMigrationChain migrations
     ) throws ConfigurateException {
         return ConfigFile.builder(type)
                 .path(directory.resolve(name))

@@ -2,30 +2,37 @@ package com.g4vrk.react.inference.command;
 
 import com.g4vrk.functionalActions.list.ExecutableActionList;
 import com.g4vrk.functionalActions.parser.ActionParser;
-import com.g4vrk.react.api.rcp.argument.RCPArgument;
+import com.g4vrk.react.api.extension.command.CommandRegistrar;
 import com.g4vrk.react.inference.config.ActionsConfig;
 import com.g4vrk.react.inference.link.Credential;
 import com.g4vrk.react.inference.server.InferenceServer;
 import com.g4vrk.schedula.task.TickSchedule;
 import com.g4vrk.schedula.task.scheduler.Scheduler;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
 import net.kyori.adventure.audience.Audience;
 import org.bukkit.command.CommandSender;
+import org.incendo.cloud.parser.standard.StringParser;
+import org.incendo.cloud.suggestion.SuggestionProvider;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 
 /**
- * {@code /react link}: links this server to the owner's account on the site.
+ * {@code /reactlink}: links this server to the owner's account on the site.
  * <ul>
- *     <li>{@code /react link} prints a link the owner opens and approves</li>
- *     <li>{@code /react link <code>} takes a code from the server's page on the site</li>
- *     <li>{@code /react link check} asks the site about the current link</li>
+ *     <li>{@code /reactlink} prints a link the owner opens and approves</li>
+ *     <li>{@code /reactlink <code>} takes a code from the server's page on the site</li>
+ *     <li>{@code /reactlink check} asks the site about the current link</li>
  * </ul>
+ *
+ * <p>It is a Cloud command of its own because an RCP cannot add subcommands to {@code /react}. The
+ * permission stays {@code react.command.link}, the one the old subcommand used.</p>
  */
-public final class LinkArgument implements RCPArgument {
+public final class LinkCommand {
+
+    public static final String LABEL = "reactlink";
+    public static final String PERMISSION = "react.command.link";
 
     /**
      * Stores a credential the site handed out and switches the RCP to it.
@@ -50,7 +57,7 @@ public final class LinkArgument implements RCPArgument {
     private ExecutableActionList<? super Audience> status;
     private ActionsConfig.Texts texts;
 
-    public LinkArgument(
+    public LinkCommand(
             final @NotNull Supplier<InferenceServer> server,
             final @NotNull CredentialHandler onLinked,
             final @NotNull Scheduler scheduler,
@@ -73,15 +80,26 @@ public final class LinkArgument implements RCPArgument {
         this.texts = config.texts();
     }
 
-    @Override
-    public void execute(final @NotNull CommandSender sender, final @NotNull List<String> args) {
+    /**
+     * Registers {@code /reactlink [code|check]}.
+     *
+     * @param commands the command registrar of the RCP
+     */
+    public void register(final @NotNull CommandRegistrar commands) {
+        commands.register(LABEL, commands.command(LABEL)
+                .permission(PERMISSION)
+                .optional("code", StringParser.stringParser(), SuggestionProvider.suggestingStrings("check"))
+                .handler(context -> execute(context.sender(), context.<String>optional("code").orElse(""))));
+    }
+
+    private void execute(final @NotNull CommandSender sender, final @NotNull String code) {
         final InferenceServer current = server.get();
-        if (!args.isEmpty() && args.get(0).equalsIgnoreCase("check")) {
+        if (code.equalsIgnoreCase("check")) {
             check(sender, current);
             return;
         }
         final CompletableFuture<InferenceServer.ConnectResult> connection;
-        if (args.isEmpty()) {
+        if (code.isEmpty()) {
             requesting.run(sender);
             connection = current.connectWithLink(link -> run(sender, open, Map.of(
                     "{url}", link.url(),
@@ -89,7 +107,7 @@ public final class LinkArgument implements RCPArgument {
                     "{minutes}", Long.toString(Math.max(1L, link.expiresInSeconds() / 60L)))));
         } else {
             checking.run(sender);
-            connection = current.connect(args.get(0));
+            connection = current.connect(code);
         }
         connection.whenComplete((result, failure) -> {
             if (failure != null) {
@@ -100,11 +118,6 @@ public final class LinkArgument implements RCPArgument {
                 finish(sender, result.credential(), result);
             }
         });
-    }
-
-    @Override
-    public @NotNull List<String> suggest(final @NotNull CommandSender sender, final @NotNull List<String> args) {
-        return args.size() <= 1 ? List.of("check") : List.of();
     }
 
     private void check(final CommandSender sender, final InferenceServer current) {

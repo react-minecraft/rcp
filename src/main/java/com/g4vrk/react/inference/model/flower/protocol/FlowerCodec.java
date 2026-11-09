@@ -2,7 +2,7 @@ package com.g4vrk.react.inference.model.flower.protocol;
 
 import com.g4vrk.react.inference.model.flower.protocol.schema.FlowerRequest;
 import com.g4vrk.react.inference.model.flower.protocol.schema.FlowerResponse;
-import com.g4vrk.react.api.rcp.player.Rotation;
+import com.g4vrk.react.api.rcp.player.RotationSample;
 import com.google.flatbuffers.FlatBufferBuilder;
 import java.nio.ByteBuffer;
 import org.jetbrains.annotations.NotNull;
@@ -13,27 +13,24 @@ import org.jetbrains.annotations.Nullable;
  */
 public final class FlowerCodec {
 
-    private static final int FEATURES_PER_FRAME = 8;
+    private static final int FEATURES_PER_FRAME = RotationSample.STRIDE;
 
     private FlowerCodec() {
     }
 
     public static byte[] encodeRequest(
-            final @NotNull Rotation[] frames,
+            final float @NotNull [] frames,
             final @NotNull String playerName,
             final @Nullable String token
     ) {
-        final float[] values = new float[frames.length * FEATURES_PER_FRAME];
-        int index = 0;
-        for (final Rotation frame : frames) {
-            index = put(values, index, frame.x());
-            index = put(values, index, frame.y());
-            index = put(values, index, frame.deltaX());
-            index = put(values, index, frame.deltaY());
-            index = put(values, index, frame.jerkX());
-            index = put(values, index, frame.jerkY());
-            index = put(values, index, frame.gcdErrorX());
-            index = put(values, index, frame.gcdErrorY());
+        if (frames.length % FEATURES_PER_FRAME != 0) {
+            throw new IllegalArgumentException("Flower frames must be whole rotation samples");
+        }
+        // The sample stores every pair pitch first; the model reads yaw (x) first, so each pair is swapped.
+        final float[] values = new float[frames.length];
+        for (int i = 0; i < frames.length; i += 2) {
+            values[i] = finite(frames[i + 1]);
+            values[i + 1] = finite(frames[i]);
         }
         final FlatBufferBuilder builder = new FlatBufferBuilder(64 + values.length * 4);
         final int framesOffset = FlowerRequest.createFramesVector(builder, values);
@@ -44,12 +41,12 @@ public final class FlowerCodec {
         return builder.sizedByteArray();
     }
 
-    private static int put(final float[] values, final int index, final float value) {
+
+    private static float finite(final float value) {
         if (!Float.isFinite(value)) {
             throw new IllegalArgumentException("Nonfinite Flower rotation");
         }
-        values[index] = value;
-        return index + 1;
+        return value;
     }
 
     public static double decodeProbability(final byte @NotNull [] body) {

@@ -1,7 +1,7 @@
 package com.g4vrk.react.inference.model.flower;
 
 import com.g4vrk.react.api.rcp.player.RCPPlayer;
-import com.g4vrk.react.api.rcp.player.Rotation;
+import com.g4vrk.react.api.rcp.player.RotationSample;
 import com.g4vrk.react.inference.http.model.HttpRequest;
 import com.g4vrk.react.inference.model.AimModel;
 import com.g4vrk.react.inference.model.ModelAnswer;
@@ -45,7 +45,7 @@ public final class FlowerModel implements AimModel {
     }
 
     @Override
-    public void onRotation(final @NotNull RCPPlayer player, final @NotNull Rotation rotation) {
+    public void onRotation(final @NotNull RCPPlayer player, final float @NotNull [] sample) {
         if (!player.inCombat()) {
             return;
         }
@@ -53,13 +53,15 @@ public final class FlowerModel implements AimModel {
         if (counter.incrementAndGet() < step || !dispatcher.tryStart(player, id)) {
             return;
         }
-        final Rotation[] history = player.rotations();
-        if (history.length < id.window()) {
+        final float[] history = player.rotations();
+        final int frames = RotationSample.count(history);
+        if (frames < id.window()) {
             dispatcher.cancel(player, id);
             return;
         }
         counter.set(0);
-        final Rotation[] snapshot = Arrays.copyOfRange(history, history.length - id.window(), history.length);
+        final float[] snapshot = Arrays.copyOfRange(
+                history, (frames - id.window()) * RotationSample.STRIDE, history.length);
         final String name = player.name();
         dispatcher.send(player, this, token -> new HttpRequest(FlowerCodec.encodeRequest(snapshot, name, token)));
     }

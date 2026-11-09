@@ -4,7 +4,7 @@
 
 # The same actions as in the plugin's actions.yml: [msg], [bar], [title], [sound]...
 
-# /react link
+# /reactlink
 link:
 
   # While the code is checked

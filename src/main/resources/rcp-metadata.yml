@@ -1,4 +1,4 @@
 name: React
 version: ${version}
 mainClass: com.g4vrk.react.inference.ReactInferenceRCP
-api-version: 1
+api-version: 3
