@@ -1,5 +1,7 @@
 package com.g4vrk.react.inference.model.vector.service;
 
+import com.g4vrk.react.api.event.rcp.ModelFrameEvent;
+import com.g4vrk.react.api.extension.ListenerRegistry;
 import com.g4vrk.react.api.rcp.environment.RCPEnvironment;
 import com.g4vrk.react.api.rcp.player.RCPPlayer;
 import com.g4vrk.react.api.rcp.player.registry.RCPPlayerRegistry;
@@ -32,6 +34,9 @@ import org.jetbrains.annotations.Nullable;
  */
 public final class AimStreamService {
 
+    private static final java.util.List<String> DATASET_COLUMNS = java.util.List.of(
+            AimFrame.csvHeader().substring("is_cheating,".length()).split(","));
+    private final ListenerRegistry events;
     private final RCPPlayerRegistry players;
     private final EntityTaskRunner entityRunner;
     private final Map<UUID, AimSession> playerData = new ConcurrentHashMap<>();
@@ -44,6 +49,7 @@ public final class AimStreamService {
             final long combatTicks,
             final @NotNull BiConsumer<RCPPlayer, AimSession> onFrame
     ) {
+        this.events = environment.listeners();
         this.players = environment.players();
         this.entityRunner = new EntityTaskRunner(environment.plugin(), environment.scheduler());
         this.combatTicks = Math.max(1L, combatTicks);
@@ -149,6 +155,7 @@ public final class AimStreamService {
     ) {
         final RCPPlayer player;
         final AimFrame frame;
+        final boolean inCombat;
         synchronized (data) {
             player = players.get(uuid);
             if (!bukkitPlayer.isOnline() || playerData.get(uuid) != data || !data.isCurrent(state)) {
@@ -159,9 +166,12 @@ public final class AimStreamService {
             if (player == null) {
                 return;
             }
+            inCombat = data.combatActivity.isActive();
             recordFrame(player, data, frame);
         }
         if (data.isCurrent(state)) {
+            events.post(new ModelFrameEvent("vector", player.uniqueId(), DATASET_COLUMNS,
+                    frame.datasetFeatures(), inCombat));
             notifySubscribers(player, frame);
         }
     }

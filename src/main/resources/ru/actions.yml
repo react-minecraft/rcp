@@ -4,7 +4,7 @@
 
 # Действия те же, что в actions.yml плагина: [msg], [bar], [title], [sound]...
 
-# /reactlink
+# /react link
 link:
 
   # Пока проверяется код

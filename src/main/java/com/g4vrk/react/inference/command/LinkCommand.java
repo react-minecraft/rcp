@@ -19,19 +19,19 @@ import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 
 /**
- * {@code /reactlink}: links this server to the owner's account on the site.
+ * {@code /react link}: links this server to the owner's account on the site.
  * <ul>
- *     <li>{@code /reactlink} prints a link the owner opens and approves</li>
- *     <li>{@code /reactlink <code>} takes a code from the server's page on the site</li>
- *     <li>{@code /reactlink check} asks the site about the current link</li>
+ *     <li>{@code /react link} prints a link the owner opens and approves</li>
+ *     <li>{@code /react link <code>} takes a code from the server's page on the site</li>
+ *     <li>{@code /react link check} asks the site about the current link</li>
  * </ul>
  *
- * <p>It is a Cloud command of its own because an RCP cannot add subcommands to {@code /react}. The
- * permission stays {@code react.command.link}, the one the old subcommand used.</p>
+ * <p>Registered directly as a Cloud subcommand of React, with permission
+ * {@code react.command.link}.</p>
  */
 public final class LinkCommand {
 
-    public static final String LABEL = "reactlink";
+    public static final String LABEL = "react";
     public static final String PERMISSION = "react.command.link";
 
     /**
@@ -81,12 +81,13 @@ public final class LinkCommand {
     }
 
     /**
-     * Registers {@code /reactlink [code|check]}.
+     * Registers {@code /react link [code|check]}.
      *
      * @param commands the command registrar of the RCP
      */
     public void register(final @NotNull CommandRegistrar commands) {
         commands.register(LABEL, commands.command(LABEL)
+                .literal("link")
                 .permission(PERMISSION)
                 .optional("code", StringParser.stringParser(), SuggestionProvider.suggestingStrings("check"))
                 .handler(context -> execute(context.sender(), context.<String>optional("code").orElse(""))));
