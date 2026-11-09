@@ -78,8 +78,14 @@ public final class VectorModel implements AimModel {
             return;
         }
         final String name = player.name();
-        dispatcher.send(player, this, token -> new HttpRequest(FrameCodec.encodeBatch(snapshot, name, token),
-                Map.of("X-Batch", "1")));
+        dispatcher.send(
+                player,
+                this,
+                token -> new HttpRequest(
+                        FrameCodec.encodeBatch(snapshot, name, token),
+                        Map.of("X-Batch", "1")
+                )
+        );
     }
 
     @Override

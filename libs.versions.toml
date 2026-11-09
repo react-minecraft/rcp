@@ -10,7 +10,7 @@ flatbuffers = "25.2.10"
 
 configurate = "4.2.0"
 actions = "2.2.0"
-schedula = "1.1.0"
+schedula = "1.1.2"
 textserializer = "1.1.0"
 
 junit = "6.1.3"

@@ -42,7 +42,9 @@ class FlowerCodecTest {
     @Test
     void rejectsNonFiniteRotations() {
         final float[] rotation = {Float.NaN, 0F, 0F, 0F, 0F, 0F, 0F, 0F};
-        assertThrows(IllegalArgumentException.class,
-                () -> FlowerCodec.encodeRequest(rotation, "Steve", null));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> FlowerCodec.encodeRequest(rotation, "Steve", null)
+        );
     }
 }

@@ -170,8 +170,13 @@ public final class AimStreamService {
             recordFrame(player, data, frame);
         }
         if (data.isCurrent(state)) {
-            events.post(new ModelFrameEvent("vector", player.uniqueId(), DATASET_COLUMNS,
-                    frame.datasetFeatures(), inCombat));
+            events.post(new ModelFrameEvent(
+                    "vector",
+                    player.uniqueId(),
+                    DATASET_COLUMNS,
+                    frame.datasetFeatures(),
+                    inCombat
+            ));
             notifySubscribers(player, frame);
         }
     }

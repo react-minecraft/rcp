@@ -61,7 +61,10 @@ public final class FlowerModel implements AimModel {
         }
         counter.set(0);
         final float[] snapshot = Arrays.copyOfRange(
-                history, (frames - id.window()) * RotationSample.STRIDE, history.length);
+                history,
+                (frames - id.window()) * RotationSample.STRIDE,
+                history.length
+        );
         final String name = player.name();
         dispatcher.send(player, this, token -> new HttpRequest(FlowerCodec.encodeRequest(snapshot, name, token)));
     }

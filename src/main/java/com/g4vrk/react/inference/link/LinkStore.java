@@ -106,7 +106,8 @@ public final class LinkStore {
         final KeyFactory factory = KeyFactory.getInstance(KEY_ALGORITHM);
         final KeyPair keys = new KeyPair(
                 factory.generatePublic(new X509EncodedKeySpec(decoder.decode(lines[2]))),
-                factory.generatePrivate(new PKCS8EncodedKeySpec(decoder.decode(lines[1]))));
+                factory.generatePrivate(new PKCS8EncodedKeySpec(decoder.decode(lines[1])))
+        );
         return new Credential(lines[0], keys);
     }
 

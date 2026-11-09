@@ -36,8 +36,10 @@ public final class FlowerCodec {
         final int framesOffset = FlowerRequest.createFramesVector(builder, values);
         final int nameOffset = builder.createString(playerName);
         final int tokenOffset = token == null || token.isBlank() ? 0 : builder.createString(token);
-        FlowerRequest.finishFlowerRequestBuffer(builder,
-                FlowerRequest.createFlowerRequest(builder, tokenOffset, nameOffset, framesOffset));
+        FlowerRequest.finishFlowerRequestBuffer(
+                builder,
+                FlowerRequest.createFlowerRequest(builder, tokenOffset, nameOffset, framesOffset)
+        );
         return builder.sizedByteArray();
     }
 

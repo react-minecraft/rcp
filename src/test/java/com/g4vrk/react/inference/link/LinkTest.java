@@ -24,9 +24,11 @@ class LinkTest {
 
     @Test
     void messageMatchesTheSite() {
-        assertEquals("POST\n/api/v1/auth/check\nabc\n1700000000\n"
+        assertEquals(
+                "POST\n/api/v1/auth/check\nabc\n1700000000\n"
                         + "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-                RequestSigner.message("post", "/api/v1/auth/check", "abc", 1700000000L, new byte[0]));
+                RequestSigner.message("post", "/api/v1/auth/check", "abc", 1700000000L, new byte[0])
+        );
     }
 
     @Test

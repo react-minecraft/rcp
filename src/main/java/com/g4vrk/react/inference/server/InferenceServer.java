@@ -248,10 +248,17 @@ public final class InferenceServer {
      */
     public @NotNull CompletableFuture<ConnectResult> connect(final @NotNull String code) {
         final KeyPair keys = RequestSigner.newKeyPair();
-        return post("/api/v1/auth/connect", Map.of(
-                "code", code,
-                "fingerprint", fingerprint,
-                "public_key", RequestSigner.publicKey(keys.getPublic())))
+        return post(
+                "/api/v1/auth/connect",
+                Map.of(
+                        "code",
+                        code,
+                        "fingerprint",
+                        fingerprint,
+                        "public_key",
+                        RequestSigner.publicKey(keys.getPublic())
+                )
+        )
                 .thenApply(response -> connectResult(response, keys));
     }
 
@@ -283,14 +290,26 @@ public final class InferenceServer {
                 return CompletableFuture.completedFuture(ConnectResult.refused(String.valueOf(json.get("detail"))));
             }
             final long interval = json.get("interval") instanceof Number number ? Math.max(1L, number.longValue()) : 3L;
-            onLink.accept(new DeviceLink(String.valueOf(json.get("verification_uri_complete")),
-                    String.valueOf(json.get("user_code")), expiresIn.longValue()));
+            onLink.accept(new DeviceLink(
+                    String.valueOf(json.get("verification_uri_complete")),
+                    String.valueOf(json.get("user_code")),
+                    expiresIn.longValue()
+            ));
             final Map<String, Object> body = Map.of(
-                    "device_code", deviceCode,
-                    "fingerprint", fingerprint,
-                    "public_key", RequestSigner.publicKey(keys.getPublic()));
-            return pollDeviceLogin(attempt, body, keys, interval,
-                    System.currentTimeMillis() + expiresIn.longValue() * 1000L);
+                    "device_code",
+                    deviceCode,
+                    "fingerprint",
+                    fingerprint,
+                    "public_key",
+                    RequestSigner.publicKey(keys.getPublic())
+            );
+            return pollDeviceLogin(
+                    attempt,
+                    body,
+                    keys,
+                    interval,
+                    System.currentTimeMillis() + expiresIn.longValue() * 1000L
+            );
         });
     }
 
@@ -407,8 +426,12 @@ public final class InferenceServer {
         if (!isSuccessful(response) || !(result.get("api_key") instanceof String accessToken)) {
             return ConnectResult.refused(String.valueOf(result.get("detail")));
         }
-        return new ConnectResult(new Credential(accessToken, keys), String.valueOf(result.get("server")),
-                readModelStates(result), "");
+        return new ConnectResult(
+                new Credential(accessToken, keys),
+                String.valueOf(result.get("server")),
+                readModelStates(result),
+                ""
+        );
     }
 
     private String http(final HttpResponse<?> response) {
@@ -455,9 +478,12 @@ public final class InferenceServer {
     private static Map<ModelId, URI> modelUrls() {
         final Map<ModelId, URI> urls = new EnumMap<>(ModelId.class);
         for (final ModelId model : ModelId.values()) {
-            urls.put(model, apiUrl(MODEL_PATH
-                    + "?model-family=" + URLEncoder.encode(model.family(), StandardCharsets.UTF_8)
-                    + "&model-name=" + URLEncoder.encode(model.modelName(), StandardCharsets.UTF_8)));
+            urls.put(
+                    model,
+                    apiUrl(MODEL_PATH
+                            + "?model-family=" + URLEncoder.encode(model.family(), StandardCharsets.UTF_8)
+                            + "&model-name=" + URLEncoder.encode(model.modelName(), StandardCharsets.UTF_8))
+            );
         }
         return urls;
     }

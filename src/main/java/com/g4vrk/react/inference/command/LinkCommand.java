@@ -86,11 +86,14 @@ public final class LinkCommand {
      * @param commands the command registrar of the RCP
      */
     public void register(final @NotNull CommandRegistrar commands) {
-        commands.register(LABEL, commands.command(LABEL)
-                .literal("link")
-                .permission(PERMISSION)
-                .optional("code", StringParser.stringParser(), SuggestionProvider.suggestingStrings("check"))
-                .handler(context -> execute(context.sender(), context.<String>optional("code").orElse(""))));
+        commands.register(
+                LABEL,
+                commands.command(LABEL)
+                        .literal("link")
+                        .permission(PERMISSION)
+                        .optional("code", StringParser.stringParser(), SuggestionProvider.suggestingStrings("check"))
+                        .handler(context -> execute(context.sender(), context.<String>optional("code").orElse("")))
+        );
     }
 
     private void execute(final @NotNull CommandSender sender, final @NotNull String code) {
@@ -103,9 +106,13 @@ public final class LinkCommand {
         if (code.isEmpty()) {
             requesting.run(sender);
             connection = current.connectWithLink(link -> run(sender, open, Map.of(
-                    "{url}", link.url(),
-                    "{code}", link.code(),
-                    "{minutes}", Long.toString(Math.max(1L, link.expiresInSeconds() / 60L)))));
+                    "{url}",
+                    link.url(),
+                    "{code}",
+                    link.code(),
+                    "{minutes}",
+                    Long.toString(Math.max(1L, link.expiresInSeconds() / 60L))
+            )));
         } else {
             checking.run(sender);
             connection = current.connect(code);

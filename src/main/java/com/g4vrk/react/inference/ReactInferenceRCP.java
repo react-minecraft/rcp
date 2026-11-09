@@ -36,7 +36,10 @@ public final class ReactInferenceRCP extends RCPProvider {
         this.environment = environment;
         final ActionRegistry<Audience> registry = new SimpleActionRegistry<>(true);
         DefaultActionSet.Adventure.registerDefaults(
-                registry, LegacySerializerRegistry.INSTANCE.universalSerializer()::serialize, ";");
+                registry,
+                LegacySerializerRegistry.INSTANCE.universalSerializer()::serialize,
+                ";"
+        );
         this.actionParser = new SimpleActionParser<>(registry);
     }
 
@@ -58,8 +61,12 @@ public final class ReactInferenceRCP extends RCPProvider {
         models = new ModelService(environment, connection.server(), configs);
         connection.onReplaced(models::use);
 
-        linkCommand = new LinkCommand(connection::server, connection::link, environment.scheduler(),
-                environment.logger());
+        linkCommand = new LinkCommand(
+                connection::server,
+                connection::link,
+                environment.scheduler(),
+                environment.logger()
+        );
         linkCommand.reload(actionParser, configs.actions());
         linkCommand.register(environment.commands());
 

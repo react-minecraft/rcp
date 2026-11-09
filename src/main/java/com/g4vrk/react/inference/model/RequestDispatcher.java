@@ -126,8 +126,13 @@ public final class RequestDispatcher {
     ) {
         final byte[] body = response.body();
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
-            logger.warn("React rejected the {} request for {}: HTTP {} {}", model.id().displayName(), name,
-                    response.statusCode(), new String(body, StandardCharsets.UTF_8));
+            logger.warn(
+                    "React rejected the {} request for {}: HTTP {} {}",
+                    model.id().displayName(),
+                    name,
+                    response.statusCode(),
+                    new String(body, StandardCharsets.UTF_8)
+            );
             return null;
         }
         final ModelAnswer answer = model.readResponse(body);
@@ -137,8 +142,13 @@ public final class RequestDispatcher {
         final ModelId answered = ModelId.fromIdentity(response.headers().firstValue("X-React-Model-Family").orElse("")
                 + "/" + response.headers().firstValue("X-React-Model-Name").orElse(""));
         final ModelId id = answered != null ? answered : model.id();
-        return new InferenceResult(id.identity(), id.displayName(),
-                Math.min(1.0D, answer.probability()), answer.threshold(), answer.enforcement());
+        return new InferenceResult(
+                id.identity(),
+                id.displayName(),
+                Math.min(1.0D, answer.probability()),
+                answer.threshold(),
+                answer.enforcement()
+        );
     }
 
     private void logFailure(final @NotNull String name, final @NotNull AimModel model, final @NotNull Throwable failure) {
