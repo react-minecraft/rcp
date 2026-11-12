@@ -1,6 +1,7 @@
 package com.g4vrk.react.inference.model.vector.feature;
 
 import com.g4vrk.react.inference.model.vector.model.VectorFeature;
+import com.g4vrk.react.inference.model.vector.thread.EntityRegion;
 import com.github.retrooper.packetevents.protocol.player.ClientVersion;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
@@ -130,8 +131,8 @@ public final class TargetFeatures {
 
     private static int countTargetsInRange(final Player player, final double px, final double py, final double pz) {
         int count = 0;
-        for (final Entity entity : player.getNearbyEntities(6.0, 6.0, 6.0)) {
-            if (!(entity instanceof LivingEntity) || entity.isDead()) {
+        for (final Entity entity : EntityRegion.nearby(player)) {
+            if (!(entity instanceof LivingEntity) || !EntityRegion.owns(entity) || entity.isDead()) {
                 continue;
             }
             if (entity instanceof Player other && other.getGameMode() == GameMode.SPECTATOR) {

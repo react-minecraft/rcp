@@ -9,13 +9,13 @@ import com.g4vrk.react.api.rcp.player.registry.RCPPlayerRegistry;
 import com.g4vrk.react.inference.model.vector.model.AimFrame;
 import com.g4vrk.react.inference.model.vector.session.AimSession;
 import com.g4vrk.react.inference.model.vector.session.AimState;
+import com.g4vrk.react.inference.model.vector.thread.EntityRegion;
 import com.github.retrooper.packetevents.event.PacketReceiveEvent;
 import com.github.retrooper.packetevents.protocol.packettype.PacketType;
 import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientInteractEntity;
 import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientPlayerFlying;
 import com.g4vrk.schedula.task.TickSchedule;
 import com.g4vrk.schedula.task.scheduler.Scheduler;
-import org.bukkit.Bukkit;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
@@ -220,18 +220,18 @@ public final class AimStreamService {
         if (pendingTarget == -1) {
             return;
         }
-        final Entity attacked = findSupportedEntity(bukkitPlayer, pendingTarget);
-        state.onAttack(attacked == null ? null : attacked.getUniqueId());
-        if (player != null && CombatTarget.isMannequin(attacked)) {
+        final Entity attacked = findNearbyMannequin(bukkitPlayer, pendingTarget);
+        state.mannequin(attacked);
+        if (player != null && attacked != null) {
             player.enterCombat();
         }
 
     }
 
-    private static @Nullable Entity findSupportedEntity(final @NotNull Player bukkitPlayer, final int entityId) {
+    private static @Nullable Entity findNearbyMannequin(final @NotNull Player bukkitPlayer, final int entityId) {
 
-        for (final Entity entity : bukkitPlayer.getWorld().getEntities()) {
-            if (entity.getEntityId() == entityId && CombatTarget.isSupported(entity)) {
+        for (final Entity entity : EntityRegion.nearby(bukkitPlayer)) {
+            if (EntityRegion.owns(entity) && entity.getEntityId() == entityId && CombatTarget.isMannequin(entity)) {
                 return entity;
             }
         }
@@ -241,13 +241,13 @@ public final class AimStreamService {
 
     private @Nullable Entity resolveTarget(final @NotNull AimSession data, final @NotNull AimState state) {
 
-        final UUID targetId = state.targetId();
-        if (targetId == null || !data.combatActivity.isActive()) {
+        if (!data.combatActivity.isActive()) {
             return null;
         }
-        final RCPPlayer targetPlayer = players.get(targetId);
-        final Entity target = targetPlayer != null ? targetPlayer.bukkit() : Bukkit.getEntity(targetId);
-        return target != null && CombatTarget.isSupported(target) ? target : null;
+        final UUID targetId = state.targetId();
+        final RCPPlayer targetPlayer = targetId == null ? null : players.get(targetId);
+        final Entity target = targetPlayer == null ? state.mannequin() : targetPlayer.bukkit();
+        return target != null && EntityRegion.owns(target) ? target : null;
 
     }
 

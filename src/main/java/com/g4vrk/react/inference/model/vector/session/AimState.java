@@ -13,6 +13,9 @@ import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+/**
+ * Rotation and target state for one Vector combat session.
+ */
 public final class AimState {
 
     private final Object lock = new Object();
@@ -25,12 +28,14 @@ public final class AimState {
     private float lastAccelPitch;
     private boolean rotationOnPreviousFlying = true;
     private boolean idleFlyingSinceLastFrame;
-    private UUID targetId;
+    private @Nullable UUID targetId;
+    private @Nullable Entity mannequin;
     private int pendingTargetEntityId = -1;
 
     public void onAttackEntity(final int entityId) {
         synchronized (lock) {
             targetId = null;
+            mannequin = null;
             pendingTargetEntityId = entityId;
         }
     }
@@ -38,6 +43,7 @@ public final class AimState {
     public void onAttack(final @Nullable UUID targetUuid) {
         synchronized (lock) {
             targetId = targetUuid;
+            mannequin = null;
             pendingTargetEntityId = -1;
         }
     }
@@ -56,6 +62,22 @@ public final class AimState {
         }
     }
 
+    public void mannequin(final @Nullable Entity target) {
+
+        synchronized (lock) {
+            mannequin = target;
+        }
+
+    }
+
+    public @Nullable Entity mannequin() {
+
+        synchronized (lock) {
+            return mannequin;
+        }
+
+    }
+
     public void onFlying(final boolean hasRotation) {
         if (hasRotation) {
             return;
@@ -69,6 +91,7 @@ public final class AimState {
         synchronized (lock) {
             aimModes.reset();
             targetId = null;
+            mannequin = null;
             pendingTargetEntityId = -1;
         }
     }
