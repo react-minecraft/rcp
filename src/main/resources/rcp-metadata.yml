@@ -2,3 +2,7 @@ name: React
 version: ${version}
 mainClass: com.g4vrk.react.inference.ReactInferenceRCP
 api-version: 2
+
+github:
+  repository: react-minecraft/rcp
+  updatable: true
