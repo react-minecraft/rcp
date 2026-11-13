@@ -7,12 +7,14 @@ import com.g4vrk.functionalActions.registry.ActionRegistry;
 import com.g4vrk.functionalActions.registry.impl.SimpleActionRegistry;
 import com.g4vrk.react.api.rcp.environment.RCPEnvironment;
 import com.g4vrk.react.api.rcp.provider.RCPProvider;
+import com.g4vrk.react.inference.api.InferenceApi;
 import com.g4vrk.react.inference.command.LinkCommand;
 import com.g4vrk.react.inference.config.InferenceConfigs;
 import com.g4vrk.react.inference.model.AimModels;
 import com.g4vrk.react.inference.service.ConnectionService;
 import com.g4vrk.react.inference.service.ModelService;
 import com.g4vrk.text.LegacySerializerRegistry;
+import java.util.List;
 import net.kyori.adventure.audience.Audience;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -72,6 +74,8 @@ public final class ReactInferenceRCP extends RCPProvider {
 
         instance = this;
         connection.refreshStatus();
+        final List<String> modelIds = models.models().all().stream().map(model -> model.id().identity()).toList();
+        environment.services().register(InferenceApi.class, () -> modelIds);
     }
 
     @Override

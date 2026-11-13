@@ -3,6 +3,7 @@ import util.VersionUtility
 
 plugins {
     id("java-library")
+    id("maven-publish")
     id("react.base-conventions")
     id("react.shadow-conventions")
 }
@@ -45,7 +46,8 @@ dependencies {
     compileOnly(libs.lombok)
     annotationProcessor(libs.lombok)
 
-    implementation(libs.flatbuffers)
+    compileOnly(libs.flatbuffers)
+    testImplementation(libs.flatbuffers)
 
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
@@ -58,6 +60,25 @@ dependencies {
 java {
     sourceCompatibility = JavaVersion.VERSION_17
     targetCompatibility = JavaVersion.VERSION_17
+}
+
+val inferenceApiJar = tasks.register<Jar>("inferenceApiJar") {
+    archiveClassifier.set("api")
+    from(sourceSets.main.get().output)
+    include("com/g4vrk/react/inference/api/**")
+}
+
+publishing {
+    publications {
+        create<MavenPublication>("inferenceApi") {
+            groupId = System.getenv("GROUP") ?: project.group.toString()
+            artifactId = "rcp"
+            version = System.getenv("VERSION") ?: project.version.toString()
+            artifact(inferenceApiJar) {
+                classifier = ""
+            }
+        }
+    }
 }
 
 tasks {
@@ -80,7 +101,6 @@ tasks {
 
     named<ShadowJar>("shadowJar") {
         archiveFileName.set("${rootProject.name}-${project.version}.jar")
-        relocate("com.google.flatbuffers", "com.g4vrk.react.inference.libs.flatbuffers")
     }
 
     named("build") {
