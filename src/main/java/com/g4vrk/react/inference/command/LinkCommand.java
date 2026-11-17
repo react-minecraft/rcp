@@ -8,15 +8,17 @@ import com.g4vrk.react.inference.link.Credential;
 import com.g4vrk.react.inference.server.InferenceServer;
 import com.g4vrk.schedula.task.TickSchedule;
 import com.g4vrk.schedula.task.scheduler.Scheduler;
-import java.util.Map;
-import java.util.concurrent.CompletableFuture;
-import java.util.function.Supplier;
 import net.kyori.adventure.audience.Audience;
 import org.bukkit.command.CommandSender;
+import org.incendo.cloud.key.CloudKey;
 import org.incendo.cloud.parser.standard.StringParser;
 import org.incendo.cloud.suggestion.SuggestionProvider;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
+
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.Supplier;
 
 /**
  * {@code /react link}: links this server to the owner's account on the site.
@@ -33,6 +35,7 @@ public final class LinkCommand {
 
     public static final String LABEL = "react";
     public static final String PERMISSION = "react.command.link";
+    private static final CloudKey<String> CODE = CloudKey.of("code", String.class);
 
     /**
      * Stores a credential the site handed out and switches the RCP to it.
@@ -40,7 +43,8 @@ public final class LinkCommand {
     @FunctionalInterface
     public interface CredentialHandler {
 
-        void accept(@NotNull Credential credential) throws Exception;
+        void accept(final @NotNull Credential credential) throws Exception;
+
 
     }
 
@@ -63,13 +67,16 @@ public final class LinkCommand {
             final @NotNull Scheduler scheduler,
             final @NotNull Logger logger
     ) {
+
         this.server = server;
         this.onLinked = onLinked;
         this.scheduler = scheduler;
         this.logger = logger;
+
     }
 
     public void reload(final @NotNull ActionParser<Audience> parser, final @NotNull ActionsConfig config) {
+
         final ActionsConfig.Link link = config.link();
         this.checking = parser.parseAll(link.checking());
         this.requesting = parser.parseAll(link.requesting());
@@ -78,6 +85,7 @@ public final class LinkCommand {
         this.failed = parser.parseAll(link.failed());
         this.status = parser.parseAll(link.status());
         this.texts = config.texts();
+
     }
 
     /**
@@ -86,17 +94,20 @@ public final class LinkCommand {
      * @param commands the command registrar of the RCP
      */
     public void register(final @NotNull CommandRegistrar commands) {
+
         commands.register(
                 LABEL,
                 commands.command(LABEL)
                         .literal("link")
                         .permission(PERMISSION)
-                        .optional("code", StringParser.stringParser(), SuggestionProvider.suggestingStrings("check"))
-                        .handler(context -> execute(context.sender(), context.<String>optional("code").orElse("")))
+                        .optional(CODE, StringParser.stringParser(), SuggestionProvider.suggestingStrings("check"))
+                        .handler(context -> execute(context.sender(), context.optional(CODE).orElse("")))
         );
+
     }
 
     private void execute(final @NotNull CommandSender sender, final @NotNull String code) {
+
         final InferenceServer current = server.get();
         if (code.equalsIgnoreCase("check")) {
             check(sender, current);
@@ -126,9 +137,11 @@ public final class LinkCommand {
                 finish(sender, result.credential(), result);
             }
         });
+
     }
 
-    private void check(final CommandSender sender, final InferenceServer current) {
+    private void check(final @NotNull CommandSender sender, final @NotNull InferenceServer current) {
+
         current.checkConnection().whenComplete((result, failure) -> {
             if (failure != null) {
                 fail(sender, String.valueOf(failure.getMessage()));
@@ -138,13 +151,15 @@ public final class LinkCommand {
                 run(sender, status, Map.of("{server}", result.server(), "{models}", texts.describe(result.models())));
             }
         });
+
     }
 
     private void finish(
-            final CommandSender sender,
-            final Credential credential,
+            final @NotNull CommandSender sender,
+            final @NotNull Credential credential,
             final InferenceServer.ConnectResult result
     ) {
+
         try {
             onLinked.accept(credential);
         } catch (final Exception exception) {
@@ -153,17 +168,21 @@ public final class LinkCommand {
             return;
         }
         run(sender, linked, Map.of("{server}", result.server(), "{models}", texts.describe(result.models())));
+
     }
 
-    private void fail(final CommandSender sender, final String reason) {
+    private void fail(final @NotNull CommandSender sender, final @NotNull String reason) {
+
         run(sender, failed, Map.of("{reason}", reason));
+
     }
 
     private void run(
-            final CommandSender sender,
-            final ExecutableActionList<? super Audience> actions,
-            final Map<String, String> placeholders
+            final @NotNull CommandSender sender,
+            final @NotNull ExecutableActionList<? super Audience> actions,
+            final @NotNull Map<String, String> placeholders
     ) {
+
         scheduler.schedule(() -> actions.run(sender, text -> {
             String replaced = text;
             for (final Map.Entry<String, String> placeholder : placeholders.entrySet()) {
@@ -171,6 +190,7 @@ public final class LinkCommand {
             }
             return replaced;
         }), TickSchedule.instant());
+
     }
 
 }
