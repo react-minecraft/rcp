@@ -10,9 +10,10 @@ import com.g4vrk.schedula.task.TickSchedule;
 import com.g4vrk.schedula.task.scheduler.Scheduler;
 import net.kyori.adventure.audience.Audience;
 import org.bukkit.command.CommandSender;
+import org.bukkit.entity.Player;
+import org.incendo.cloud.Command;
 import org.incendo.cloud.key.CloudKey;
 import org.incendo.cloud.parser.standard.StringParser;
-import org.incendo.cloud.suggestion.SuggestionProvider;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 
@@ -95,24 +96,16 @@ public final class LinkCommand {
      */
     public void register(final @NotNull CommandRegistrar commands) {
 
-        commands.register(
-                LABEL,
-                commands.command(LABEL)
-                        .literal("link")
-                        .permission(PERMISSION)
-                        .optional(CODE, StringParser.stringParser(), SuggestionProvider.suggestingStrings("check"))
-                        .handler(context -> execute(context.sender(), context.optional(CODE).orElse("")))
-        );
+        final Command.Builder<CommandSender> link = commands.command(LABEL).literal("link").permission(PERMISSION);
+        commands.register(LABEL, link.handler(context -> execute(context.sender(), "")));
+        commands.register(LABEL, link.literal("check").handler(context -> check(context.sender(), server.get())));
+        commands.register(LABEL, link.required(CODE, StringParser.stringParser()).handler(context -> execute(context.sender(), context.get(CODE))));
 
     }
 
     private void execute(final @NotNull CommandSender sender, final @NotNull String code) {
 
         final InferenceServer current = server.get();
-        if (code.equalsIgnoreCase("check")) {
-            check(sender, current);
-            return;
-        }
         final CompletableFuture<InferenceServer.ConnectResult> connection;
         if (code.isEmpty()) {
             requesting.run(sender);
@@ -183,13 +176,18 @@ public final class LinkCommand {
             final @NotNull Map<String, String> placeholders
     ) {
 
-        scheduler.schedule(() -> actions.run(sender, text -> {
+        final Runnable response = () -> actions.run(sender, text -> {
             String replaced = text;
             for (final Map.Entry<String, String> placeholder : placeholders.entrySet()) {
                 replaced = replaced.replace(placeholder.getKey(), placeholder.getValue());
             }
             return replaced;
-        }), TickSchedule.instant());
+        });
+        if (sender instanceof Player player) {
+            scheduler.scheduleEntity(player, response, TickSchedule.instant());
+        } else {
+            scheduler.schedule(response, TickSchedule.instant());
+        }
 
     }
 
