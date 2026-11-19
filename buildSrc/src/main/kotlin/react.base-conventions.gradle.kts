@@ -1,4 +1,5 @@
 import com.diffplug.gradle.spotless.SpotlessExtension
+import com.diffplug.spotless.LineEnding
 
 plugins {
     `java-library`
@@ -13,6 +14,8 @@ java {
 }
 
 extensions.configure<SpotlessExtension> {
+
+    lineEndings = LineEnding.UNIX
 
     java {
 
