@@ -69,18 +69,20 @@ public final class VectorModel implements AimModel {
             return;
         }
         session.resize(ID.window());
-        if (!dispatcher.tryStart(player, ID)) {
+        final RequestDispatcher.Claim claim = dispatcher.tryStart(player, ID);
+        if (claim == null) {
             return;
         }
         final AimFrame[] snapshot = session.pollSnapshot(ID.step());
         if (snapshot == null) {
-            dispatcher.cancel(player, ID);
+            dispatcher.cancel(claim);
             return;
         }
         final String name = player.name();
         dispatcher.send(
                 player,
                 this,
+                claim,
                 token -> new HttpRequest(
                         FrameCodec.encodeBatch(snapshot, name, token),
                         Map.of("X-Batch", "1")

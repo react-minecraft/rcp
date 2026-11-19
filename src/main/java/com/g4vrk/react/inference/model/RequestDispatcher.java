@@ -50,18 +50,30 @@ public final class RequestDispatcher {
     /**
      * Claims the model's request slot for the player.
      *
-     * @return false when the player is not checked, the model is off or a request is in flight
+     * @return the claim, or null when the player is not checked, the model is off or a request is in flight
      */
-    public boolean tryStart(final @NotNull RCPPlayer player, final @NotNull ModelId model) {
-        return player.checked() && server.isModelEnabled(model)
-                && slots(player.uniqueId()).slot(model).compareAndSet(false, true);
+    public @Nullable Claim tryStart(final @NotNull RCPPlayer player, final @NotNull ModelId model) {
+        if (!player.checked() || !server.isModelEnabled(model)) {
+            return null;
+        }
+        final Slots slots = slots(player.uniqueId());
+        synchronized (slots) {
+            if (players.get(player.uniqueId()) != slots || !slots.slot(model).compareAndSet(false, true)) {
+                return null;
+            }
+            return new Claim(slots, model, slots.generation.get());
+        }
     }
 
     /**
-     * Gives the slot back when the model had nothing to send after all.
+     * Gives the claimed slot back when the model had nothing to send after all.
      */
-    public void cancel(final @NotNull RCPPlayer player, final @NotNull ModelId model) {
-        slots(player.uniqueId()).slot(model).set(false);
+    public void cancel(final @NotNull Claim claim) {
+        synchronized (claim.slots) {
+            if (claim.slots.generation.get() == claim.generation) {
+                claim.slots.slot(claim.model).set(false);
+            }
+        }
     }
 
     /**
@@ -72,11 +84,12 @@ public final class RequestDispatcher {
     public void send(
             final @NotNull RCPPlayer player,
             final @NotNull AimModel model,
+            final @NotNull Claim claim,
             final @NotNull Function<String, HttpRequest> encoder
     ) {
         final InferenceServer server = this.server;
-        final Slots slots = slots(player.uniqueId());
-        final long generation = slots.generation.get();
+        final Slots slots = claim.slots;
+        final long generation = claim.generation;
         final long epoch = server.requestEpoch();
         final String name = player.name();
         try {
@@ -86,19 +99,31 @@ public final class RequestDispatcher {
                     if (failure != null) {
                         logFailure(name, model, failure);
                     }
-                    if (result != null && slots.generation.get() == generation) {
-                        server.publishIfCurrent(epoch, () -> environment.fire(player, result));
+                    if (result != null) {
+                        server.publishIfCurrent(epoch, () -> {
+                            synchronized (slots) {
+                                if (slots.generation.get() == generation) {
+                                    environment.fire(player, result);
+                                }
+                            }
+                        });
                     }
                 } catch (final RuntimeException ex) {
                     logger.warn("Could not process the {} answer for {}", model.id().displayName(), name, ex);
                 } finally {
-                    if (slots.generation.get() == generation) {
-                        slots.slot(model.id()).set(false);
+                    synchronized (slots) {
+                        if (slots.generation.get() == generation) {
+                            slots.slot(model.id()).set(false);
+                        }
                     }
                 }
             });
         } catch (final RuntimeException ex) {
-            slots.slot(model.id()).set(false);
+            synchronized (slots) {
+                if (slots.generation.get() == generation) {
+                    slots.slot(model.id()).set(false);
+                }
+            }
             logger.warn("Could not send the {} request for {}", model.id().displayName(), name, ex);
         }
     }
@@ -109,14 +134,22 @@ public final class RequestDispatcher {
     public void reset(final @NotNull UUID player) {
         final Slots slots = players.get(player);
         if (slots != null) {
-            slots.generation.incrementAndGet();
-            slots.requesting.values().forEach(flag -> flag.set(false));
+            synchronized (slots) {
+                slots.generation.incrementAndGet();
+                slots.requesting.values().forEach(flag -> flag.set(false));
+            }
         }
     }
 
     public void remove(final @NotNull UUID player) {
-        reset(player);
-        players.remove(player);
+        final Slots slots = players.get(player);
+        if (slots != null) {
+            synchronized (slots) {
+                slots.generation.incrementAndGet();
+                slots.requesting.values().forEach(flag -> flag.set(false));
+                players.remove(player, slots);
+            }
+        }
     }
 
     private @Nullable InferenceResult read(
@@ -176,6 +209,23 @@ public final class RequestDispatcher {
 
         private @NotNull AtomicBoolean slot(final @NotNull ModelId model) {
             return requesting.get(model);
+        }
+
+    }
+
+    /**
+     * A model request slot tied to the player generation that claimed it.
+     */
+    public static final class Claim {
+
+        private final Slots slots;
+        private final ModelId model;
+        private final long generation;
+
+        private Claim(final Slots slots, final ModelId model, final long generation) {
+            this.slots = slots;
+            this.model = model;
+            this.generation = generation;
         }
 
     }

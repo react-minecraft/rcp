@@ -50,13 +50,17 @@ public final class FlowerModel implements AimModel {
             return;
         }
         final AtomicInteger counter = samples.computeIfAbsent(player.uniqueId(), ignored -> new AtomicInteger());
-        if (counter.incrementAndGet() < step || !dispatcher.tryStart(player, id)) {
+        if (counter.incrementAndGet() < step) {
+            return;
+        }
+        final RequestDispatcher.Claim claim = dispatcher.tryStart(player, id);
+        if (claim == null) {
             return;
         }
         final float[] history = player.rotations();
         final int frames = RotationSample.count(history);
         if (frames < id.window()) {
-            dispatcher.cancel(player, id);
+            dispatcher.cancel(claim);
             return;
         }
         counter.set(0);
@@ -66,7 +70,7 @@ public final class FlowerModel implements AimModel {
                 history.length
         );
         final String name = player.name();
-        dispatcher.send(player, this, token -> new HttpRequest(FlowerCodec.encodeRequest(snapshot, name, token)));
+        dispatcher.send(player, this, claim, token -> new HttpRequest(FlowerCodec.encodeRequest(snapshot, name, token)));
     }
 
     @Override
