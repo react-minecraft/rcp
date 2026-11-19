@@ -4,7 +4,6 @@ import com.g4vrk.functionalActions.list.ExecutableActionList;
 import com.g4vrk.functionalActions.parser.ActionParser;
 import com.g4vrk.react.api.extension.command.CommandRegistrar;
 import com.g4vrk.react.inference.config.ActionsConfig;
-import com.g4vrk.react.inference.link.Credential;
 import com.g4vrk.react.inference.server.InferenceServer;
 import com.g4vrk.schedula.task.TickSchedule;
 import com.g4vrk.schedula.task.scheduler.Scheduler;
@@ -44,7 +43,7 @@ public final class LinkCommand {
     @FunctionalInterface
     public interface CredentialHandler {
 
-        void accept(final @NotNull Credential credential) throws Exception;
+        void accept(final @NotNull InferenceServer server, final @NotNull InferenceServer.ConnectResult result) throws Exception;
 
 
     }
@@ -127,7 +126,7 @@ public final class LinkCommand {
             } else if (result.credential() == null) {
                 fail(sender, result.detail());
             } else {
-                finish(sender, result.credential(), result);
+                finish(sender, current, result);
             }
         });
 
@@ -149,12 +148,12 @@ public final class LinkCommand {
 
     private void finish(
             final @NotNull CommandSender sender,
-            final @NotNull Credential credential,
+            final @NotNull InferenceServer current,
             final InferenceServer.ConnectResult result
     ) {
 
         try {
-            onLinked.accept(credential);
+            onLinked.accept(current, result);
         } catch (final Exception exception) {
             logger.error("Could not save the link", exception);
             fail(sender, String.valueOf(exception.getMessage()));

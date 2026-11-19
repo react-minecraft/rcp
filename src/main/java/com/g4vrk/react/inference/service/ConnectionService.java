@@ -34,6 +34,7 @@ public final class ConnectionService {
     private Consumer<InferenceServer> onReplaced = server -> { };
     private volatile ActionsConfig.Texts texts;
     private volatile InferenceServer server;
+    private boolean closed;
 
     public ConnectionService(final @NotNull RCPEnvironment environment, final @NotNull InferenceConfigs configs)
             throws IOException {
@@ -54,13 +55,21 @@ public final class ConnectionService {
         this.onReplaced = listener;
     }
 
-    public void link(final @NotNull Credential credential) throws IOException {
-        linkStore.save(credential);
-        server.use(credential);
+    public synchronized void link(final @NotNull InferenceServer source, final @NotNull InferenceServer.ConnectResult result) throws IOException {
+        if (closed || source != server) {
+            throw new IllegalStateException("The link attempt was replaced by a reload or shutdown");
+        }
+        synchronized (source) {
+            if (!source.isCurrentLogin(result.attempt()) || result.credential() == null) {
+                throw new IllegalStateException("The link attempt was replaced");
+            }
+            linkStore.save(result.credential());
+            source.use(result.credential());
+        }
         refreshStatus();
     }
 
-    public void reload(final @NotNull InferenceConfigs configs) throws IOException {
+    public synchronized void reload(final @NotNull InferenceConfigs configs) throws IOException {
         texts = configs.actions().texts();
         final InferenceServer previous = server;
         server = newServer(configs);
@@ -69,7 +78,8 @@ public final class ConnectionService {
         refreshStatus();
     }
 
-    public void shutdown() {
+    public synchronized void shutdown() {
+        closed = true;
         final InferenceServer current = server;
         if (current != null) {
             current.shutdown();
@@ -111,22 +121,21 @@ public final class ConnectionService {
     }
 
     /**
-     * Moves the token of a plugin from before the RCP, kept in {@code plugins/React/inference.yml}, into {@code .link}.
+     * Copies the token of a plugin from before the RCP, kept in {@code plugins/React/inference.yml}, into {@code .link}.
      * It has no signing key, so the site keeps such a server bound to its IP until it is linked again.
      */
     private void migrateLegacyToken() {
         final Path legacy = environment.plugin().getDataFolder().toPath().resolve("inference.yml");
-        if (!Files.isRegularFile(legacy)) {
+        if (!Files.isRegularFile(legacy) || Files.exists(environment.directory().resolve(".link"))) {
             return;
         }
         try {
             final String token = YamlConfigurationLoader.builder().path(legacy).build().load()
                     .node("auth", "value").getString("");
-            if (token.matches(LEGACY_TOKEN) && linkStore.load() == null) {
+            if (token.matches(LEGACY_TOKEN)) {
                 linkStore.save(Credential.unsigned(token));
-                logger.info("Moved the access token from inference.yml into the React RCP");
+                logger.info("Copied the access token from inference.yml into the React RCP");
             }
-            Files.delete(legacy);
         } catch (final ConfigurateException exception) {
             logger.warn("Could not read the old inference.yml", exception);
         } catch (final IOException exception) {

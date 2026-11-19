@@ -105,7 +105,7 @@ public final class InferenceServer {
     /**
      * Switches to a credential the owner just linked and asks the site for its models at once.
      */
-    public void use(final @NotNull Credential linked) {
+    public synchronized void use(final @NotNull Credential linked) {
         credential = linked;
         enabledModels = Set.of();
         nextModelRefresh.set(0L);
@@ -157,6 +157,7 @@ public final class InferenceServer {
             enabledModels = Set.of();
             return;
         }
+        final long epoch = requestEpoch.get();
         try {
             get(CHECK_PATH).whenComplete((response, failure) -> {
                 if (failure != null) {
@@ -165,15 +166,18 @@ public final class InferenceServer {
                     return;
                 }
                 if (response.statusCode() == 401 || response.statusCode() == 403) {
-                    enabledModels = Set.of();
-                    logger.warn("The site refused this server's link: link it again with /react link");
+                    publishIfCurrent(epoch, () -> {
+                        enabledModels = Set.of();
+                        logger.warn("The site refused this server's link: link it again with /react link");
+                    });
                     return;
                 }
                 if (!isSuccessful(response)) {
                     return;
                 }
                 try {
-                    enabledModels = readEnabledModels(readJson(response));
+                    final Set<ModelId> models = readEnabledModels(readJson(response));
+                    publishIfCurrent(epoch, () -> enabledModels = models);
                 } catch (final RuntimeException exception) {
                     logger.debug("Could not read the enabled models", exception);
                 }
@@ -204,6 +208,7 @@ public final class InferenceServer {
         if (credential == null) {
             return CompletableFuture.completedFuture(ConnectionStatus.failed(reasons.notLinked()));
         }
+        final long epoch = requestEpoch.get();
         return get(CHECK_PATH).handle((response, failure) -> {
             if (failure != null) {
                 return ConnectionStatus.failed(String.valueOf(failure.getMessage()));
@@ -214,8 +219,11 @@ public final class InferenceServer {
                     final Object detail = json.get("detail");
                     return ConnectionStatus.failed(detail != null ? String.valueOf(detail) : http(response));
                 }
-                enabledModels = readEnabledModels(json);
-                nextModelRefresh.set(System.currentTimeMillis() + MODEL_REFRESH_MILLIS);
+                final Set<ModelId> models = readEnabledModels(json);
+                publishIfCurrent(epoch, () -> {
+                    enabledModels = models;
+                    nextModelRefresh.set(System.currentTimeMillis() + MODEL_REFRESH_MILLIS);
+                });
                 return new ConnectionStatus(String.valueOf(json.get("server")), readModelStates(json), null);
             } catch (final RuntimeException exception) {
                 return ConnectionStatus.failed(isSuccessful(response)
@@ -234,11 +242,12 @@ public final class InferenceServer {
             @Nullable Credential credential,
             String server,
             Map<ModelId, Boolean> models,
-            String detail
+            String detail,
+            long attempt
     ) {
 
         static ConnectResult refused(final String detail) {
-            return new ConnectResult(null, "", Map.of(), detail);
+            return new ConnectResult(null, "", Map.of(), detail, -1L);
         }
 
     }
@@ -247,6 +256,7 @@ public final class InferenceServer {
      * Exchanges a code from the server's page on the site for this server's credential.
      */
     public @NotNull CompletableFuture<ConnectResult> connect(final @NotNull String code) {
+        final long attempt = beginLogin();
         final KeyPair keys = RequestSigner.newKeyPair();
         return post(
                 "/api/v1/auth/connect",
@@ -259,7 +269,8 @@ public final class InferenceServer {
                         RequestSigner.publicKey(keys.getPublic())
                 )
         )
-                .thenApply(response -> connectResult(response, keys));
+                .thenApply(response -> attempt == deviceLogin.get() && !closed.get()
+                        ? connectResult(response, keys, attempt) : ConnectResult.refused(reasons.replaced()));
     }
 
     /**
@@ -276,9 +287,12 @@ public final class InferenceServer {
      * @param onLink receives the link to show the owner
      */
     public @NotNull CompletableFuture<ConnectResult> connectWithLink(final @NotNull Consumer<DeviceLink> onLink) {
-        final long attempt = deviceLogin.incrementAndGet();
+        final long attempt = beginLogin();
         final KeyPair keys = RequestSigner.newKeyPair();
         return post("/api/v1/auth/device", Map.of("fingerprint", fingerprint)).thenCompose(response -> {
+            if (attempt != deviceLogin.get() || closed.get()) {
+                return CompletableFuture.completedFuture(ConnectResult.refused(reasons.replaced()));
+            }
             final Map<String, Object> json;
             try {
                 json = readJson(response);
@@ -327,10 +341,25 @@ public final class InferenceServer {
             return CompletableFuture.completedFuture(ConnectResult.refused(reasons.expired()));
         }
         return CompletableFuture.runAsync(() -> { }, CompletableFuture.delayedExecutor(intervalSeconds, TimeUnit.SECONDS))
-                .thenCompose(ignored -> post("/api/v1/auth/device/token", body))
-                .thenCompose(response -> response.statusCode() == 202
+                .thenCompose(ignored -> {
+                    if (attempt != deviceLogin.get() || closed.get()) {
+                        return CompletableFuture.completedFuture(null);
+                    }
+                    return post("/api/v1/auth/device/token", body);
+                })
+                .thenCompose(response -> response == null || attempt != deviceLogin.get() || closed.get()
+                        ? CompletableFuture.completedFuture(ConnectResult.refused(reasons.replaced()))
+                        : response.statusCode() == 202
                         ? pollDeviceLogin(attempt, body, keys, intervalSeconds, deadlineMillis)
-                        : CompletableFuture.completedFuture(connectResult(response, keys)));
+                        : CompletableFuture.completedFuture(connectResult(response, keys, attempt)));
+    }
+
+    public synchronized boolean isCurrentLogin(final long attempt) {
+        return !closed.get() && attempt == deviceLogin.get();
+    }
+
+    private synchronized long beginLogin() {
+        return deviceLogin.incrementAndGet();
     }
 
     /**
@@ -416,7 +445,7 @@ public final class InferenceServer {
         return callTimeout.isZero() || callTimeout.isNegative() ? builder : builder.timeout(callTimeout);
     }
 
-    private ConnectResult connectResult(final HttpResponse<byte[]> response, final KeyPair keys) {
+    private ConnectResult connectResult(final HttpResponse<byte[]> response, final KeyPair keys, final long attempt) {
         final Map<String, Object> result;
         try {
             result = readJson(response);
@@ -430,7 +459,8 @@ public final class InferenceServer {
                 new Credential(accessToken, keys),
                 String.valueOf(result.get("server")),
                 readModelStates(result),
-                ""
+                "",
+                attempt
         );
     }
 
