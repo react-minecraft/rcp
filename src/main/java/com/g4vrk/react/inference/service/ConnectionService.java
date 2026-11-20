@@ -35,6 +35,7 @@ public final class ConnectionService {
     private volatile ActionsConfig.Texts texts;
     private volatile InferenceServer server;
     private boolean closed;
+    private long statusRevision;
 
     public ConnectionService(final @NotNull RCPEnvironment environment, final @NotNull InferenceConfigs configs)
             throws IOException {
@@ -80,31 +81,43 @@ public final class ConnectionService {
 
     public synchronized void shutdown() {
         closed = true;
+        statusRevision++;
         final InferenceServer current = server;
         if (current != null) {
             current.shutdown();
         }
     }
 
-    public void refreshStatus() {
+    public synchronized void refreshStatus() {
+        if (closed) {
+            return;
+        }
+        final long revision = ++statusRevision;
         final InferenceServer current = server;
+        final ActionsConfig.Texts currentTexts = texts;
         if (!current.isLinked()) {
-            status(texts.status(false, current.enabledModels()));
+            status(revision, currentTexts.status(false, current.enabledModels()));
             return;
         }
         current.checkConnection().whenComplete((result, failure) -> {
             if (failure != null) {
-                status(String.valueOf(failure.getMessage()));
+                status(revision, String.valueOf(failure.getMessage()));
             } else if (result.problem() != null) {
-                status(result.problem());
+                status(revision, result.problem());
             } else {
-                status(texts.status(true, current.enabledModels()));
+                status(revision, currentTexts.status(true, current.enabledModels()));
             }
         });
     }
 
-    private void status(final String status) {
-        environment.scheduler().schedule(() -> environment.status(status), TickSchedule.instant());
+    private void status(final long revision, final String status) {
+        environment.scheduler().schedule(() -> {
+            synchronized (this) {
+                if (!closed && statusRevision == revision) {
+                    environment.status(status);
+                }
+            }
+        }, TickSchedule.instant());
     }
 
     private InferenceServer newServer(final InferenceConfigs configs) throws IOException {
