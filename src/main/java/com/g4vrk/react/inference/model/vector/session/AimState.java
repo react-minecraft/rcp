@@ -33,33 +33,41 @@ public final class AimState {
     private int pendingTargetEntityId = -1;
 
     public void onAttackEntity(final int entityId) {
+
         synchronized (lock) {
             targetId = null;
             mannequin = null;
             pendingTargetEntityId = entityId;
         }
+
     }
 
     public void onAttack(final @Nullable UUID targetUuid) {
+
         synchronized (lock) {
             targetId = targetUuid;
             mannequin = null;
             pendingTargetEntityId = -1;
         }
+
     }
 
     public int takePendingTargetEntityId() {
+
         synchronized (lock) {
             final int entityId = pendingTargetEntityId;
             pendingTargetEntityId = -1;
             return entityId;
         }
+
     }
 
     public @Nullable UUID targetId() {
+
         synchronized (lock) {
             return targetId;
         }
+
     }
 
     public void mannequin(final @Nullable Entity target) {
@@ -79,21 +87,25 @@ public final class AimState {
     }
 
     public void onFlying(final boolean hasRotation) {
+
         if (hasRotation) {
             return;
         }
         synchronized (lock) {
             idleFlyingSinceLastFrame = true;
         }
+
     }
 
     public void resetVector() {
+
         synchronized (lock) {
             aimModes.reset();
             targetId = null;
             mannequin = null;
             pendingTargetEntityId = -1;
         }
+
     }
 
     public @NotNull AimFrame capture(
@@ -102,6 +114,7 @@ public final class AimState {
             final float rawYaw,
             final float rawPitch
     ) {
+
         synchronized (lock) {
             final float yaw = MouseMath.normalizeAngle(rawYaw);
             final float pitch = Math.max(-90.0f, Math.min(90.0f, rawPitch));
@@ -124,6 +137,7 @@ public final class AimState {
                     deltaYaw, deltaPitch, accelYaw, accelPitch, jerkYaw, jerkPitch, gcdErrorYaw, gcdErrorPitch, vector
             );
         }
+
     }
 
     private float[] captureFeatures(
@@ -134,6 +148,7 @@ public final class AimState {
             final float deltaYaw,
             final float deltaPitch
     ) {
+
         final float[] features = new float[VectorFeature.COUNT];
         VectorFeature.ROTATION_PRESENT.put(features, rotationOnPreviousFlying && !idleFlyingSinceLastFrame);
         rotationOnPreviousFlying = !idleFlyingSinceLastFrame;
@@ -150,6 +165,7 @@ public final class AimState {
         VectorFeature.HELD_ITEM_CLASS.put(features, HeldItemClassifier.classify(player.getInventory().getItemInMainHand()));
         VectorFeature.PLAYER_PING.put(features, PlayerClientInfo.ping(player));
         return features;
+
     }
 
 }

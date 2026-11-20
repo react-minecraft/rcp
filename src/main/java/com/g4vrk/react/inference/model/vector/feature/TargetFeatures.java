@@ -16,7 +16,9 @@ public final class TargetFeatures {
     private static final double[] POSSIBLE_EYE_HEIGHTS = {1.62, 1.27, 0.4};
 
     private TargetFeatures() {
+
         throw new UnsupportedOperationException("This is a utility class and cannot be instantiated");
+
     }
 
     public static void writeTo(
@@ -28,6 +30,7 @@ public final class TargetFeatures {
             final float yaw,
             final float pitch
     ) {
+
         final Location feet = player.getLocation();
         final double px = feet.getX();
         final double py = feet.getY();
@@ -39,6 +42,7 @@ public final class TargetFeatures {
         VectorFeature.TARGET_REL_Y.put(features, (float) (position.getY() - py));
         VectorFeature.TARGET_REL_Z.put(features, (float) (position.getZ() - pz));
         VectorFeature.TARGETS_IN_RANGE_COUNT.put(features, countTargetsInRange(player, px, py, pz));
+
     }
 
     private static double[] lookDirections(
@@ -48,6 +52,7 @@ public final class TargetFeatures {
             final float yaw,
             final float pitch
     ) {
+
         final ClientVersion version = PlayerClientInfo.version(player);
         if (version != null && version.isOlderThan(ClientVersion.V_1_8)) {
             return writeLookVector(yaw, pitch, new double[3], 0);
@@ -60,9 +65,11 @@ public final class TargetFeatures {
             writeLookVector(lastYaw, lastPitch, directions, 3 * 2);
         }
         return directions;
+
     }
 
     private static double[] writeLookVector(final float yaw, final float pitch, final double[] out, final int offset) {
+
         final double pitchRadians = Math.toRadians(pitch);
         final double yawRadians = Math.toRadians(-yaw);
         final double pitchCos = Math.cos(pitchRadians);
@@ -75,6 +82,7 @@ public final class TargetFeatures {
         out[offset + 1] = y * scale;
         out[offset + 2] = z * scale;
         return out;
+
     }
 
     private static double minAngleToBox(
@@ -84,6 +92,7 @@ public final class TargetFeatures {
             final double[] directions,
             final BoundingBox box
     ) {
+
         double maxDot = Double.NEGATIVE_INFINITY;
         for (final double eyeHeight : POSSIBLE_EYE_HEIGHTS) {
             final double eyeY = py + eyeHeight;
@@ -106,30 +115,38 @@ public final class TargetFeatures {
             }
         }
         return Math.toDegrees(Math.acos(Math.max(-1.0, Math.min(1.0, maxDot))));
+
     }
 
     private static double pointX(final BoundingBox box, final int point) {
+
         if (point == 0) {
             return box.getCenterX();
         }
         return ((point - 1) & 1) == 0 ? box.getMinX() : box.getMaxX();
+
     }
 
     private static double pointY(final BoundingBox box, final int point) {
+
         if (point == 0) {
             return box.getCenterY();
         }
         return ((point - 1) & 2) == 0 ? box.getMinY() : box.getMaxY();
+
     }
 
     private static double pointZ(final BoundingBox box, final int point) {
+
         if (point == 0) {
             return box.getCenterZ();
         }
         return ((point - 1) & 4) == 0 ? box.getMinZ() : box.getMaxZ();
+
     }
 
     private static int countTargetsInRange(final Player player, final double px, final double py, final double pz) {
+
         int count = 0;
         for (final Entity entity : EntityRegion.nearby(player)) {
             if (!(entity instanceof LivingEntity) || !EntityRegion.owns(entity) || entity.isDead()) {
@@ -147,6 +164,7 @@ public final class TargetFeatures {
             }
         }
         return count;
+
     }
 
 }

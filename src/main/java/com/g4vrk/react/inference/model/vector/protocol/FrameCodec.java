@@ -18,7 +18,9 @@ public final class FrameCodec {
     }
 
     public static byte[] encodeRequest(final @NotNull AimFrame[] frames) {
+
         return encodeRequest(frames, "Unknown", null);
+
     }
 
     public static byte[] encodeRequest(
@@ -26,6 +28,7 @@ public final class FrameCodec {
             final @NotNull String playerName,
             final @Nullable String token
     ) {
+
         if (frames.length == 0) {
             throw new IllegalArgumentException("Vector frames cannot be empty");
         }
@@ -46,10 +49,13 @@ public final class FrameCodec {
         InferenceRequest.addSupportsObservation(builder, true);
         InferenceRequest.finishInferenceRequestBuffer(builder, InferenceRequest.endInferenceRequest(builder));
         return builder.sizedByteArray();
+
     }
 
     public static byte[] encodeBatch(final @NotNull AimFrame[] frames) {
+
         return encodeBatch(frames, "Unknown", null);
+
     }
 
     public static byte[] encodeBatch(
@@ -57,6 +63,7 @@ public final class FrameCodec {
             final @NotNull String playerName,
             final @Nullable String token
     ) {
+
         final byte[] payload = encodeRequest(frames, playerName, token);
         return ByteBuffer.allocate(6 + payload.length)
                 .order(ByteOrder.LITTLE_ENDIAN)
@@ -64,9 +71,11 @@ public final class FrameCodec {
                 .putInt(payload.length)
                 .put(payload)
                 .array();
+
     }
 
     public static double decodeResponse(final @NotNull byte[] body) {
+
         if (body.length < 14 || !hasBatchIdentifier(body)) {
             throw new IllegalArgumentException("Invalid VECTOR response; expected GAIB");
         }
@@ -80,9 +89,11 @@ public final class FrameCodec {
             throw new IllegalArgumentException("Invalid VECTOR probability");
         }
         return probability;
+
     }
 
     public static @NotNull Prediction decodePrediction(final @NotNull byte[] body) {
+
         final double prefixProbability = decodeResponse(body);
         final ByteBuffer payload = ByteBuffer.wrap(body, 14, body.length - 14)
                 .slice()
@@ -92,9 +103,11 @@ public final class FrameCodec {
         } catch (final IndexOutOfBoundsException | NegativeArraySizeException | ArithmeticException malformed) {
             throw new IllegalArgumentException("Malformed VECTOR response", malformed);
         }
+
     }
 
     private static Prediction readPrediction(final ByteBuffer payload, final double prefixProbability) {
+
         if (!InferenceResponse.InferenceResponseBufferHasIdentifier(payload)) {
             throw new IllegalArgumentException("Expected GAIR response");
         }
@@ -111,9 +124,11 @@ public final class FrameCodec {
             throw new IllegalArgumentException("Inconsistent VECTOR response metadata");
         }
         return new Prediction(probability, threshold, enforcementEnabled, readRunId(response));
+
     }
 
     private static String readRunId(final InferenceResponse response) {
+
         final ByteBuffer encoded = response.runIdAsByteBuffer();
         if (encoded == null) {
             return "";
@@ -122,9 +137,11 @@ public final class FrameCodec {
             throw new IllegalArgumentException("Invalid run identifier");
         }
         return response.runId();
+
     }
 
     private static float[] flatten(final AimFrame[] frames) {
+
         final float[] features = new float[frames.length * AimFrame.INFERENCE_FEATURE_COUNT];
         for (int frameIndex = 0; frameIndex < frames.length; frameIndex++) {
             final float[] inputs = frames[frameIndex].inferenceFeatures();
@@ -136,10 +153,13 @@ public final class FrameCodec {
             System.arraycopy(inputs, 0, features, frameIndex * inputs.length, inputs.length);
         }
         return features;
+
     }
 
     private static boolean hasBatchIdentifier(final byte[] body) {
+
         return body[0] == 'G' && body[1] == 'A' && body[2] == 'I' && body[3] == 'B';
+
     }
 
     public record Prediction(double probability, double threshold, boolean enforcementEnabled, String runId) {

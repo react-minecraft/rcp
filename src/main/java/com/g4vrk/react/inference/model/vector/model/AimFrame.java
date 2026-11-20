@@ -25,6 +25,7 @@ public final class AimFrame {
             final float gcdErrorPitch,
             final @Nullable float[] vector
     ) {
+
         if (vector != null && vector.length != VectorFeature.COUNT) {
             throw new IllegalArgumentException("Expected " + VectorFeature.COUNT + " VECTOR features");
         }
@@ -40,9 +41,11 @@ public final class AimFrame {
         if (vector != null) {
             System.arraycopy(vector, 0, features, VectorFeature.ROTATION_PRESENT.datasetIndex(), VectorFeature.COUNT);
         }
+
     }
 
     public static @NotNull AimFrame fromFeatures(final @NotNull float[] values) {
+
         if (values.length != DATASET_FEATURE_COUNT) {
             throw new IllegalArgumentException("Expected " + DATASET_FEATURE_COUNT + " VECTOR features");
         }
@@ -50,17 +53,23 @@ public final class AimFrame {
                 values[0], values[1], values[2], values[3], values[4], values[5], values[6], values[7],
                 Arrays.copyOfRange(values, VectorFeature.ROTATION_PRESENT.datasetIndex(), values.length)
         );
+
     }
 
     public static @NotNull String csvHeader() {
+
         return "is_cheating," + BASE_HEADER + "," + VectorFeature.csvColumns();
+
     }
 
     public @NotNull float[] datasetFeatures() {
+
         return features.clone();
+
     }
 
     public @NotNull float[] inferenceFeatures() {
+
         float[] inputs = inferenceFeatures;
         if (inputs == null) {
             inputs = new float[INFERENCE_FEATURE_COUNT];
@@ -70,18 +79,23 @@ public final class AimFrame {
             inferenceFeatures = inputs;
         }
         return inputs.clone();
+
     }
 
     public @NotNull String toCsvRow(final boolean cheater) {
+
         final StringBuilder row = new StringBuilder(cheater ? "1" : "0");
         for (final float value : features) {
             row.append(',').append(formatDatasetValue(value));
         }
         return row.toString();
+
     }
 
     private static String formatDatasetValue(final float value) {
+
         return String.format(Locale.US, "%.6f", value);
+
     }
 
 }

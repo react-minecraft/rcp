@@ -18,51 +18,67 @@ public enum ModelId {
     private final int window;
     private final int step;
 
-    ModelId(String family, String modelName, String displayName, int window, int step) {
+    ModelId(final String family, final String modelName, final String displayName, final int window, final int step) {
+
         this.family = family;
         this.modelName = modelName;
         this.displayName = displayName;
         this.window = window;
         this.step = step;
+
     }
 
     public @NotNull String family() {
+
         return family;
+
     }
 
     public @NotNull String modelName() {
+
         return modelName;
+
     }
 
     public @NotNull String displayName() {
+
         return displayName;
+
     }
 
     public int window() {
+
         return window;
+
     }
 
     public int step() {
+
         return step;
+
     }
 
     /**
      * {@code family/name}, the form the site and the plugin name a model by.
      */
     public @NotNull String identity() {
+
         return family + "/" + modelName;
+
     }
 
     /**
      * A newer backend may list models this build does not know about.
      */
     public static @Nullable ModelId fromIdentity(final @Nullable String identity) {
+
         for (final ModelId model : values()) {
             if (model.identity().equals(identity)) {
                 return model;
             }
         }
         return null;
+
     }
 
 }

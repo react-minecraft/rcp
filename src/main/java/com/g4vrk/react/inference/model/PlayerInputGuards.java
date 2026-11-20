@@ -13,10 +13,12 @@ final class PlayerInputGuards {
     private final AtomicLong[] generations = new AtomicLong[64];
 
     PlayerInputGuards() {
+
         for (int i = 0; i < locks.length; i++) {
             locks[i] = new Object();
             generations[i] = new AtomicLong();
         }
+
     }
 
     @NotNull Object lock(final @NotNull UUID player) {
@@ -24,15 +26,21 @@ final class PlayerInputGuards {
     }
 
     long generation(final @NotNull UUID player) {
+
         return generations[index(player)].get();
+
     }
 
     void invalidate(final @NotNull UUID player) {
+
         generations[index(player)].incrementAndGet();
+
     }
 
     private int index(final UUID player) {
+
         return (player.hashCode() & Integer.MAX_VALUE) % locks.length;
+
     }
 
 }

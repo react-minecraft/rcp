@@ -16,11 +16,15 @@ public class HttpRequest {
     @NotNull Map<String, String> headers;
 
     public HttpRequest(final byte @NotNull [] body) {
+
         this(body, Map.of());
+
     }
 
     public HttpRequest(final byte @NotNull [] body, final @NotNull Map<String, String> headers) {
+
         this.body = body;
         this.headers = Map.copyOf(headers);
+
     }
 }

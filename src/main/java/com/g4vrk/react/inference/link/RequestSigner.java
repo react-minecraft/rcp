@@ -32,20 +32,24 @@ public final class RequestSigner {
     }
 
     public static @NotNull KeyPair newKeyPair() {
+
         try {
             return KeyPairGenerator.getInstance(ALGORITHM).generateKeyPair();
         } catch (final GeneralSecurityException exception) {
             throw new IllegalStateException("Ed25519 is not available", exception);
         }
+
     }
 
     /**
      * The raw 32 bytes of the key in base64, the form the site stores.
      */
     public static @NotNull String publicKey(final @NotNull PublicKey key) {
+
         final byte[] encoded = key.getEncoded();
         final byte[] raw = Arrays.copyOfRange(encoded, encoded.length - RAW_PUBLIC_KEY_LENGTH, encoded.length);
         return Base64.getEncoder().encodeToString(raw);
+
     }
 
     public static @NotNull String message(
@@ -55,11 +59,14 @@ public final class RequestSigner {
             final long timestampSeconds,
             final byte @NotNull [] body
     ) {
+
         final String digest = HexFormat.of().formatHex(ServerFingerprint.sha256(body));
         return method.toUpperCase(Locale.ROOT) + "\n" + path + "\n" + fingerprint + "\n" + timestampSeconds + "\n" + digest;
+
     }
 
     public static @NotNull String sign(final @NotNull PrivateKey key, final @NotNull String message) {
+
         try {
             final Signature signature = Signature.getInstance(ALGORITHM);
             signature.initSign(key);
@@ -68,6 +75,7 @@ public final class RequestSigner {
         } catch (final GeneralSecurityException exception) {
             throw new IllegalStateException("Could not sign the request", exception);
         }
+
     }
 
 }

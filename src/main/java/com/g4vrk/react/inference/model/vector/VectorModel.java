@@ -38,33 +38,44 @@ public final class VectorModel implements AimModel {
             final @NotNull RequestDispatcher dispatcher,
             final long combatTicks
     ) {
+
         this.environment = environment;
         this.dispatcher = dispatcher;
         this.stream = new AimStreamService(environment, dispatcher, combatTicks, this::onFrame);
+
     }
 
     public void combatTicks(final long combatTicks) {
+
         stream.combatTicks(combatTicks);
+
     }
 
     @Override
     public @NotNull ModelId id() {
+
         return ID;
+
     }
 
     /**
      * The frame stream, for addons that read Vector Preview frames.
      */
     public @NotNull AimStreamService stream() {
+
         return stream;
+
     }
 
     @Override
     public @NotNull List<PacketListenerCommon> packetListeners() {
+
         return List.of(new VectorListener(environment, stream));
+
     }
 
     private void onFrame(final @NotNull RCPPlayer player, final @NotNull AimSession session) {
+
         if (!session.combatActivity.isActive()) {
             return;
         }
@@ -88,27 +99,36 @@ public final class VectorModel implements AimModel {
                         Map.of("X-Batch", "1")
                 )
         );
+
     }
 
     @Override
     public @NotNull ModelAnswer readResponse(final byte @NotNull [] body) {
+
         final FrameCodec.Prediction prediction = FrameCodec.decodePrediction(body);
         return new ModelAnswer(prediction.probability(), prediction.threshold(), prediction.enforcementEnabled());
+
     }
 
     @Override
     public void clearHistory(final @NotNull UUID player) {
+
         stream.claimPlayerData(player).clearHistory();
+
     }
 
     @Override
     public void resetPlayer(final @NotNull UUID player) {
+
         stream.claimPlayerData(player).reset();
+
     }
 
     @Override
     public void removePlayer(final @NotNull UUID player) {
+
         stream.removePlayerData(player);
+
     }
 
 }

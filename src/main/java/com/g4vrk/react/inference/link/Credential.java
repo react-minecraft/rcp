@@ -15,7 +15,9 @@ import org.jetbrains.annotations.Nullable;
 public record Credential(@NotNull String accessToken, @Nullable KeyPair keys) {
 
     public static @NotNull Credential unsigned(final @NotNull String accessToken) {
+
         return new Credential(accessToken, null);
+
     }
 
 }

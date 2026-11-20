@@ -83,6 +83,7 @@ public final class InferenceServer {
             final @NotNull String pluginVersion,
             final @NotNull ActionsConfig.Reasons reasons
     ) {
+
         this.logger = logger;
         this.callTimeout = callTimeout;
         this.credential = credential;
@@ -90,30 +91,39 @@ public final class InferenceServer {
         this.fingerprint = fingerprint;
         this.rcpVersion = rcpVersion;
         this.pluginVersion = pluginVersion;
-        // The access token must never follow a redirect to another host.
+        /*
+         * The access token must never follow a redirect to another host.
+         */
         this.client = HttpClient.newBuilder()
                 .connectTimeout(connectTimeout)
                 .followRedirects(HttpClient.Redirect.NEVER)
                 .build();
         this.modelUrls = modelUrls();
+
     }
 
     public boolean isLinked() {
+
         return credential != null;
+
     }
 
     /**
      * Switches to a credential the owner just linked and asks the site for its models at once.
      */
     public synchronized void use(final @NotNull Credential linked) {
+
         credential = linked;
         enabledModels = Set.of();
         nextModelRefresh.set(0L);
         requestEpoch.incrementAndGet();
+
     }
 
     public long requestEpoch() {
+
         return requestEpoch.get();
+
     }
 
     /**
@@ -122,32 +132,41 @@ public final class InferenceServer {
      * Synchronized with {@link #shutdown()}, so nothing is published after it returns.
      */
     public synchronized void publishIfCurrent(final long epoch, final @NotNull Runnable publication) {
+
         if (!closed.get() && requestEpoch.get() == epoch) {
             publication.run();
         }
+
     }
 
     /**
      * @return the access token sent inside model requests
      */
     public @Nullable String accessToken() {
+
         final Credential current = credential;
         return current == null ? null : current.accessToken();
+
     }
 
     /**
      * The models enabled on the site for this server, refreshed in the background once a minute.
      */
     public @NotNull Set<ModelId> enabledModels() {
+
         refreshModelsIfDue();
         return enabledModels;
+
     }
 
     public boolean isModelEnabled(final @NotNull ModelId model) {
+
         return !closed.get() && enabledModels().contains(model);
+
     }
 
     private void refreshModelsIfDue() {
+
         final long now = System.currentTimeMillis();
         final long next = nextModelRefresh.get();
         if (now < next || !nextModelRefresh.compareAndSet(next, now + MODEL_REFRESH_MILLIS)) {
@@ -161,7 +180,9 @@ public final class InferenceServer {
         try {
             get(CHECK_PATH).whenComplete((response, failure) -> {
                 if (failure != null) {
-                    // A network failure keeps the last known models instead of stopping every check.
+                    /*
+                     * A network failure keeps the last known models instead of stopping every check.
+                     */
                     logger.debug("Could not refresh the enabled models", failure);
                     return;
                 }
@@ -185,6 +206,7 @@ public final class InferenceServer {
         } catch (final RuntimeException exception) {
             logger.debug("Could not refresh the enabled models", exception);
         }
+
     }
 
     /**
@@ -196,7 +218,9 @@ public final class InferenceServer {
     public record ConnectionStatus(String server, Map<ModelId, Boolean> models, @Nullable String problem) {
 
         static ConnectionStatus failed(final String problem) {
+
             return new ConnectionStatus("", Map.of(), problem);
+
         }
 
     }
@@ -205,6 +229,7 @@ public final class InferenceServer {
      * Asks the site about this server's link right now and updates the enabled models.
      */
     public @NotNull CompletableFuture<ConnectionStatus> checkConnection() {
+
         if (credential == null) {
             return CompletableFuture.completedFuture(ConnectionStatus.failed(reasons.notLinked()));
         }
@@ -230,6 +255,7 @@ public final class InferenceServer {
                         ? String.valueOf(exception.getMessage()) : http(response));
             }
         });
+
     }
 
     /**
@@ -247,7 +273,9 @@ public final class InferenceServer {
     ) {
 
         static ConnectResult refused(final String detail) {
+
             return new ConnectResult(null, "", Map.of(), detail, -1L);
+
         }
 
     }
@@ -256,6 +284,7 @@ public final class InferenceServer {
      * Exchanges a code from the server's page on the site for this server's credential.
      */
     public @NotNull CompletableFuture<ConnectResult> connect(final @NotNull String code) {
+
         final long attempt = beginLogin();
         final KeyPair keys = RequestSigner.newKeyPair();
         return post(
@@ -271,6 +300,7 @@ public final class InferenceServer {
         )
                 .thenApply(response -> attempt == deviceLogin.get() && !closed.get()
                         ? connectResult(response, keys, attempt) : ConnectResult.refused(reasons.replaced()));
+
     }
 
     /**
@@ -287,6 +317,7 @@ public final class InferenceServer {
      * @param onLink receives the link to show the owner
      */
     public @NotNull CompletableFuture<ConnectResult> connectWithLink(final @NotNull Consumer<DeviceLink> onLink) {
+
         final long attempt = beginLogin();
         final KeyPair keys = RequestSigner.newKeyPair();
         return post("/api/v1/auth/device", Map.of("fingerprint", fingerprint)).thenCompose(response -> {
@@ -325,6 +356,7 @@ public final class InferenceServer {
                     System.currentTimeMillis() + expiresIn.longValue() * 1000L
             );
         });
+
     }
 
     private CompletableFuture<ConnectResult> pollDeviceLogin(
@@ -334,6 +366,7 @@ public final class InferenceServer {
             final long intervalSeconds,
             final long deadlineMillis
     ) {
+
         if (attempt != deviceLogin.get() || closed.get()) {
             return CompletableFuture.completedFuture(ConnectResult.refused(reasons.replaced()));
         }
@@ -352,14 +385,19 @@ public final class InferenceServer {
                         : response.statusCode() == 202
                         ? pollDeviceLogin(attempt, body, keys, intervalSeconds, deadlineMillis)
                         : CompletableFuture.completedFuture(connectResult(response, keys, attempt)));
+
     }
 
     public synchronized boolean isCurrentLogin(final long attempt) {
+
         return !closed.get() && attempt == deviceLogin.get();
+
     }
 
     private synchronized long beginLogin() {
+
         return deviceLogin.incrementAndGet();
+
     }
 
     /**
@@ -369,6 +407,7 @@ public final class InferenceServer {
             final @NotNull HttpRequest httpRequest,
             final @NotNull ModelId model
     ) {
+
         if (closed.get()) {
             throw new IllegalStateException("The inference client is closed");
         }
@@ -376,7 +415,9 @@ public final class InferenceServer {
                 .POST(java.net.http.HttpRequest.BodyPublishers.ofByteArray(httpRequest.getBody()))
                 .header("Content-Type", HttpRequest.FLATBUFFERS)
                 .header("Accept", HttpRequest.FLATBUFFERS)
-                // Several models run side by side, so the request names its own model.
+                /*
+                 * Several models run side by side, so the request names its own model.
+                 */
                 .header("X-React-Player-Scoped", "true")
                 .header(RCP_VERSION_HEADER, rcpVersion)
                 .header(PLUGIN_VERSION_HEADER, pluginVersion);
@@ -386,9 +427,11 @@ public final class InferenceServer {
         inFlight.add(call);
         call.whenComplete((response, failure) -> inFlight.remove(call));
         return call;
+
     }
 
     public synchronized void shutdown() {
+
         closed.set(true);
         requestEpoch.incrementAndGet();
         deviceLogin.incrementAndGet();
@@ -402,14 +445,19 @@ public final class InferenceServer {
         } catch (final IllegalAccessException | InvocationTargetException exception) {
             logger.debug("Could not shut down the inference HTTP client", exception);
         }
+
     }
 
     private CompletableFuture<HttpResponse<byte[]>> get(final String path) {
+
         return sendAccountRequest("GET", path, new byte[0]);
+
     }
 
     private CompletableFuture<HttpResponse<byte[]>> post(final String path, final Map<String, Object> json) {
+
         return sendAccountRequest("POST", path, InferenceJsonCodec.writeObject(json).getBytes(StandardCharsets.UTF_8));
+
     }
 
     private CompletableFuture<HttpResponse<byte[]>> sendAccountRequest(
@@ -417,6 +465,7 @@ public final class InferenceServer {
             final String path,
             final byte[] body
     ) {
+
         final java.net.http.HttpRequest.Builder builder = java.net.http.HttpRequest.newBuilder(apiUrl(path))
                 .header(RCP_VERSION_HEADER, rcpVersion)
                 .header(PLUGIN_VERSION_HEADER, pluginVersion)
@@ -439,13 +488,17 @@ public final class InferenceServer {
             }
         }
         return client.sendAsync(withTimeout(builder).build(), BODY_HANDLER);
+
     }
 
     private java.net.http.HttpRequest.Builder withTimeout(final java.net.http.HttpRequest.Builder builder) {
+
         return callTimeout.isZero() || callTimeout.isNegative() ? builder : builder.timeout(callTimeout);
+
     }
 
     private ConnectResult connectResult(final HttpResponse<byte[]> response, final KeyPair keys, final long attempt) {
+
         final Map<String, Object> result;
         try {
             result = readJson(response);
@@ -462,13 +515,17 @@ public final class InferenceServer {
                 "",
                 attempt
         );
+
     }
 
     private String http(final HttpResponse<?> response) {
+
         return reasons.http().replace("{status}", Integer.toString(response.statusCode()));
+
     }
 
     private static Set<ModelId> readEnabledModels(final Map<String, Object> json) {
+
         final EnumSet<ModelId> models = EnumSet.noneOf(ModelId.class);
         readModelStates(json).forEach((model, enabled) -> {
             if (enabled) {
@@ -476,9 +533,11 @@ public final class InferenceServer {
             }
         });
         return Collections.unmodifiableSet(models);
+
     }
 
     private static Map<ModelId, Boolean> readModelStates(final Map<String, Object> json) {
+
         final Map<ModelId, Boolean> states = new EnumMap<>(ModelId.class);
         if (json.get("models") instanceof List<?> items) {
             for (final Object item : items) {
@@ -491,21 +550,29 @@ public final class InferenceServer {
             }
         }
         return states;
+
     }
 
     private static Map<String, Object> readJson(final HttpResponse<byte[]> response) {
+
         return InferenceJsonCodec.readObject(new String(response.body(), StandardCharsets.UTF_8));
+
     }
 
     private static boolean isSuccessful(final HttpResponse<?> response) {
+
         return response.statusCode() >= 200 && response.statusCode() < 300;
+
     }
 
     private static URI apiUrl(final String path) {
+
         return URI.create(BASE_URL + path);
+
     }
 
     private static Map<ModelId, URI> modelUrls() {
+
         final Map<ModelId, URI> urls = new EnumMap<>(ModelId.class);
         for (final ModelId model : ModelId.values()) {
             urls.put(
@@ -516,14 +583,17 @@ public final class InferenceServer {
             );
         }
         return urls;
+
     }
 
     private static Method findShutdownMethod() {
+
         try {
             return HttpClient.class.getMethod("shutdownNow");
         } catch (final NoSuchMethodException ignored) {
             return null;
         }
+
     }
 
 }

@@ -37,14 +37,17 @@ public final class LinkStore {
     private final SecretKeySpec key;
 
     public LinkStore(final @NotNull Path file, final @NotNull String fingerprint) {
+
         this.file = file;
         this.key = new SecretKeySpec(ServerFingerprint.sha256(fingerprint + "link"), "AES");
+
     }
 
     /**
      * @return the stored credential, or null when there is none or it was saved on another machine
      */
     public @Nullable Credential load() throws IOException {
+
         if (!Files.isRegularFile(file)) {
             return null;
         }
@@ -64,9 +67,11 @@ public final class LinkStore {
         } catch (final GeneralSecurityException | IllegalArgumentException exception) {
             return null;
         }
+
     }
 
     public void save(final @NotNull Credential credential) throws IOException {
+
         final byte[] iv = new byte[IV_LENGTH];
         RANDOM.nextBytes(iv);
         final byte[] encrypted;
@@ -84,9 +89,11 @@ public final class LinkStore {
         final Path temporary = file.resolveSibling(file.getFileName() + ".tmp");
         Files.writeString(temporary, Base64.getEncoder().encodeToString(data), StandardCharsets.US_ASCII);
         Files.move(temporary, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+
     }
 
     private static String write(final Credential credential) {
+
         final KeyPair keys = credential.keys();
         if (keys == null) {
             return credential.accessToken();
@@ -95,9 +102,11 @@ public final class LinkStore {
         return credential.accessToken()
                 + "\n" + encoder.encodeToString(keys.getPrivate().getEncoded())
                 + "\n" + encoder.encodeToString(keys.getPublic().getEncoded());
+
     }
 
     private static Credential read(final String plaintext) throws GeneralSecurityException {
+
         final String[] lines = plaintext.split("\n");
         if (lines.length < 3) {
             return Credential.unsigned(lines[0]);
@@ -109,6 +118,7 @@ public final class LinkStore {
                 factory.generatePrivate(new PKCS8EncodedKeySpec(decoder.decode(lines[1])))
         );
         return new Credential(lines[0], keys);
+
     }
 
 }

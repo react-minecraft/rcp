@@ -30,28 +30,37 @@ public final class ServerFingerprint {
     }
 
     public static @NotNull String of(final @NotNull Server server) {
+
         final List<World> worlds = server.getWorlds();
         final String world = worlds.isEmpty() ? "" : worlds.get(0).getUID().toString();
         return hash(world + "\n" + server.getPort() + "\n" + machineId());
+
     }
 
     static @NotNull String hash(final @NotNull String value) {
+
         return HexFormat.of().formatHex(sha256(value));
+
     }
 
     static byte[] sha256(final @NotNull String value) {
+
         return sha256(value.getBytes(StandardCharsets.UTF_8));
+
     }
 
     static byte[] sha256(final byte @NotNull [] value) {
+
         try {
             return MessageDigest.getInstance("SHA-256").digest(value);
         } catch (final NoSuchAlgorithmException exception) {
             throw new IllegalStateException("SHA-256 is not available", exception);
         }
+
     }
 
     private static @NotNull String machineId() {
+
         for (final Path file : MACHINE_ID_FILES) {
             try {
                 final String id = Files.readString(file).trim();
@@ -59,7 +68,9 @@ public final class ServerFingerprint {
                     return id;
                 }
             } catch (final IOException | SecurityException ignored) {
-                // The next source is tried.
+                /*
+                 * The next source is tried.
+                 */
             }
         }
         try {
@@ -67,6 +78,7 @@ public final class ServerFingerprint {
         } catch (final IOException exception) {
             return "unknown";
         }
+
     }
 
 }

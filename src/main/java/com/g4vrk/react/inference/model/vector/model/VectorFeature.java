@@ -26,27 +26,37 @@ public enum VectorFeature {
     private final String column;
 
     VectorFeature(final String column) {
+
         this.column = column;
+
     }
 
     public void put(final @NotNull float[] row, final float value) {
+
         row[ordinal()] = value;
+
     }
 
     public void put(final @NotNull float[] row, final boolean flag) {
+
         row[ordinal()] = flag ? 1.0f : 0.0f;
+
     }
 
     public int datasetIndex() {
+
         return 8 + ordinal();
+
     }
 
     public static @NotNull String csvColumns() {
+
         final String[] columns = new String[COUNT];
         for (final VectorFeature feature : values()) {
             columns[feature.ordinal()] = feature.column;
         }
         return String.join(",", columns);
+
     }
 
 }

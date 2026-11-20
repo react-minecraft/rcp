@@ -47,6 +47,7 @@ public record InferenceConfigs(
             final Logger logger,
             final ConfigMigrationChain migrations
     ) throws ConfigurateException {
+
         return ConfigFile.builder(type)
                 .path(directory.resolve(name))
                 .defaults(InferenceConfigs.class.getClassLoader(), language + "/" + name)
@@ -54,23 +55,28 @@ public record InferenceConfigs(
                 .logger(logger)
                 .build()
                 .load();
+
     }
 
     /**
      * Rewrites every {@code %name%} below the node as {@code {name}}, the placeholder form since version 2.
      */
     private static void bracePlaceholders(final ConfigurationNode node) throws SerializationException {
+
         for (final ConfigurationNode child : node.isList() ? node.childrenList() : node.childrenMap().values()) {
             bracePlaceholders(child);
         }
         if (node.rawScalar() instanceof String text) {
             node.set(PERCENT_PLACEHOLDER.matcher(text).replaceAll("{$1}"));
         }
+
     }
 
     private static String language() {
+
         final String language = System.getProperty("user.language", "ru").toLowerCase(Locale.ROOT);
         return language.equals("en") ? "en" : "ru";
+
     }
 
 }

@@ -49,14 +49,19 @@ public final class ConnectionService {
     }
 
     public @NotNull InferenceServer server() {
+
         return server;
+
     }
 
     public void onReplaced(final @NotNull Consumer<InferenceServer> listener) {
+
         this.onReplaced = listener;
+
     }
 
     public synchronized void link(final @NotNull InferenceServer source, final @NotNull InferenceServer.ConnectResult result) throws IOException {
+
         if (closed || source != server) {
             throw new IllegalStateException("The link attempt was replaced by a reload or shutdown");
         }
@@ -68,27 +73,33 @@ public final class ConnectionService {
             source.use(result.credential());
         }
         refreshStatus();
+
     }
 
     public synchronized void reload(final @NotNull InferenceConfigs configs) throws IOException {
+
         texts = configs.actions().texts();
         final InferenceServer previous = server;
         server = newServer(configs);
         onReplaced.accept(server);
         previous.shutdown();
         refreshStatus();
+
     }
 
     public synchronized void shutdown() {
+
         closed = true;
         statusRevision++;
         final InferenceServer current = server;
         if (current != null) {
             current.shutdown();
         }
+
     }
 
     public synchronized void refreshStatus() {
+
         if (closed) {
             return;
         }
@@ -108,9 +119,11 @@ public final class ConnectionService {
                 status(revision, currentTexts.status(true, current.enabledModels()));
             }
         });
+
     }
 
     private void status(final long revision, final String status) {
+
         environment.scheduler().schedule(() -> {
             synchronized (this) {
                 if (!closed && statusRevision == revision) {
@@ -118,9 +131,11 @@ public final class ConnectionService {
                 }
             }
         }, TickSchedule.instant());
+
     }
 
     private InferenceServer newServer(final InferenceConfigs configs) throws IOException {
+
         return new InferenceServer(
                 logger,
                 configs.connection().timeouts().connect(),
@@ -131,6 +146,7 @@ public final class ConnectionService {
                 environment.plugin().getDescription().getVersion(),
                 configs.actions().texts().reasons()
         );
+
     }
 
     /**
@@ -138,6 +154,7 @@ public final class ConnectionService {
      * It has no signing key, so the site keeps such a server bound to its IP until it is linked again.
      */
     private void migrateLegacyToken() {
+
         final Path legacy = environment.plugin().getDataFolder().toPath().resolve("inference.yml");
         if (!Files.isRegularFile(legacy) || Files.exists(environment.directory().resolve(".link"))) {
             return;
@@ -154,6 +171,7 @@ public final class ConnectionService {
         } catch (final IOException exception) {
             logger.warn("Could not move the old inference.yml", exception);
         }
+
     }
 
 }

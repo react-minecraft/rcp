@@ -18,21 +18,27 @@ public final class LimitedBodyHandler implements HttpResponse.BodyHandler<byte[]
     private final int maximumBytes;
 
     public LimitedBodyHandler(final int maximumBytes) {
+
         this.maximumBytes = maximumBytes;
+
     }
 
     @Override
     public HttpResponse.BodySubscriber<byte[]> apply(final HttpResponse.ResponseInfo responseInfo) {
+
         return new LimitedBodySubscriber(maximumBytes);
+
     }
 
     public static boolean isTooLarge(final @NotNull Throwable throwable) {
+
         for (Throwable cause = throwable; cause != null; cause = cause.getCause() == cause ? null : cause.getCause()) {
             if (cause instanceof TooLargeException) {
                 return true;
             }
         }
         return false;
+
     }
 
     private static final class LimitedBodySubscriber implements HttpResponse.BodySubscriber<byte[]> {
@@ -44,23 +50,30 @@ public final class LimitedBodyHandler implements HttpResponse.BodyHandler<byte[]
         private Flow.Subscription subscription;
 
         private LimitedBodySubscriber(final int maximumBytes) {
+
             this.maximumBytes = maximumBytes;
             this.output = new ByteArrayOutputStream(Math.min(maximumBytes, 256));
+
         }
 
         @Override
         public @NotNull CompletionStage<byte[]> getBody() {
+
             return body;
+
         }
 
         @Override
         public void onSubscribe(final @NotNull Flow.Subscription subscription) {
+
             this.subscription = subscription;
             subscription.request(1);
+
         }
 
         @Override
         public void onNext(final @NotNull List<ByteBuffer> buffers) {
+
             for (final ByteBuffer buffer : buffers) {
                 final int remaining = buffer.remaining();
 
@@ -76,16 +89,21 @@ public final class LimitedBodyHandler implements HttpResponse.BodyHandler<byte[]
             }
 
             subscription.request(1);
+
         }
 
         @Override
         public void onError(final @NotNull Throwable throwable) {
+
             body.completeExceptionally(throwable);
+
         }
 
         @Override
         public void onComplete() {
+
             body.complete(output.toByteArray());
+
         }
     }
 
@@ -94,7 +112,9 @@ public final class LimitedBodyHandler implements HttpResponse.BodyHandler<byte[]
         private static final long serialVersionUID = 1L;
 
         private TooLargeException(final int maximumBytes) {
+
             super("HTTP response exceeds " + maximumBytes + " bytes");
+
         }
     }
 }

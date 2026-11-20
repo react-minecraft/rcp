@@ -15,13 +15,16 @@ public final class FrameHistory {
     private boolean firstSnapshotSent;
 
     public FrameHistory(final int capacity) {
+
         if (capacity <= 0) {
             throw new IllegalArgumentException("capacity must be greater than zero");
         }
         this.frames = new AimFrame[capacity];
+
     }
 
     public synchronized void addFrame(final @NotNull AimFrame frame) {
+
         if (frame == null) {
             throw new NullPointerException("frame");
         }
@@ -31,21 +34,29 @@ public final class FrameHistory {
             size++;
         }
         framesSinceLastSnapshot++;
+
     }
 
     public synchronized boolean isFull() {
+
         return size == frames.length;
+
     }
 
     public synchronized int size() {
+
         return size;
+
     }
 
     public int capacity() {
+
         return frames.length;
+
     }
 
     public synchronized @Nullable List<AimFrame> pollSnapshot(final int step) {
+
         if (!isFull()) {
             return null;
         }
@@ -55,18 +66,22 @@ public final class FrameHistory {
         firstSnapshotSent = true;
         framesSinceLastSnapshot = 0;
         return getSnapshot();
+
     }
 
     public synchronized @NotNull List<AimFrame> getSnapshot() {
+
         final List<AimFrame> snapshot = new ArrayList<>(size);
         final int oldest = oldestIndex();
         for (int i = 0; i < size; i++) {
             snapshot.add(frames[(oldest + i) % frames.length]);
         }
         return snapshot;
+
     }
 
     public synchronized @Nullable AimFrame[] latest(final int count) {
+
         if (count < 0) {
             throw new IllegalArgumentException("count must not be negative");
         }
@@ -79,18 +94,23 @@ public final class FrameHistory {
             window[i] = frames[(start + i) % frames.length];
         }
         return window;
+
     }
 
     public synchronized void clear() {
+
         Arrays.fill(frames, null);
         writeIndex = 0;
         size = 0;
         framesSinceLastSnapshot = 0;
         firstSnapshotSent = false;
+
     }
 
     private int oldestIndex() {
+
         return size == frames.length ? writeIndex : 0;
+
     }
 
 }

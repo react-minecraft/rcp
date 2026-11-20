@@ -57,6 +57,7 @@ public record ActionsConfig(Link link, Texts texts) {
          * {@code {models}}: every model of the account, marked enabled or disabled.
          */
         public @NotNull String describe(final @NotNull Map<ModelId, Boolean> models) {
+
             if (models.isEmpty()) {
                 return none;
             }
@@ -64,12 +65,14 @@ public record ActionsConfig(Link link, Texts texts) {
                     .map(entry -> (entry.getValue() ? modelEnabled : modelDisabled)
                             .replace("{model}", entry.getKey().displayName()))
                     .collect(Collectors.joining(separator));
+
         }
 
         /**
          * The status behind {@code %react_model%}: the enabled models, or why there are none.
          */
         public @NotNull String status(final boolean linked, final @NotNull Set<ModelId> enabled) {
+
             if (!linked) {
                 return notLinked;
             }
@@ -77,6 +80,7 @@ public record ActionsConfig(Link link, Texts texts) {
                 return unavailable;
             }
             return enabled.stream().map(ModelId::displayName).collect(Collectors.joining(separator));
+
         }
 
     }

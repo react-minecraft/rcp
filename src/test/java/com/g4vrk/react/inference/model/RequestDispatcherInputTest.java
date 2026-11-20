@@ -13,6 +13,7 @@ class RequestDispatcherInputTest {
 
     @Test
     void waitingInputIsRejectedAfterReset() throws Exception {
+
         final PlayerInputGuards guards = new PlayerInputGuards();
         final UUID player = UUID.randomUUID();
         final CountDownLatch started = new CountDownLatch(1);
@@ -29,6 +30,7 @@ class RequestDispatcherInputTest {
             guards.invalidate(player);
         }
         assertFalse(accepted.get(5, TimeUnit.SECONDS));
+
     }
 
 }

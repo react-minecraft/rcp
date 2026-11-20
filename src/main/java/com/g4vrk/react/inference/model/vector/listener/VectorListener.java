@@ -24,14 +24,17 @@ public final class VectorListener extends PacketListenerAbstract {
     private final AimStreamService service;
 
     public VectorListener(final @NotNull RCPEnvironment environment, final @NotNull AimStreamService service) {
+
         super(PacketListenerPriority.LOW);
         this.players = environment.players();
         this.logger = environment.logger();
         this.service = service;
+
     }
 
     @Override
     public void onPacketReceive(final PacketReceiveEvent event) {
+
         if (event.getConnectionState() != ConnectionState.PLAY || event.getUser() == null
                 || event.getUser().getUUID() == null) {
             return;
@@ -48,13 +51,16 @@ public final class VectorListener extends PacketListenerAbstract {
         } catch (final RuntimeException exception) {
             logger.debug("Could not process a Vector Preview packet", exception);
         }
+
     }
 
     @Override
     public void onUserDisconnect(final UserDisconnectEvent event) {
+
         if (event.getUser() != null && event.getUser().getUUID() != null) {
             service.removePlayerData(event.getUser().getUUID());
         }
+
     }
 
 }

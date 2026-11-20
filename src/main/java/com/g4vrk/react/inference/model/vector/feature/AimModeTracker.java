@@ -20,6 +20,7 @@ public final class AimModeTracker {
     private double deltaDotsPitch;
 
     public void update(final float fromYaw, final float toYaw, final float deltaYaw, final float deltaPitch) {
+
         final double yawAbs = Math.abs(deltaYaw);
         final double pitchAbs = Math.abs(deltaPitch);
         trackYaw(fromYaw, toYaw, yawAbs);
@@ -42,9 +43,11 @@ public final class AimModeTracker {
         if (modePitch > 0.0) {
             deltaDotsPitch = pitchAbs / modePitch;
         }
+
     }
 
     public void writeTo(final @NotNull float[] features) {
+
         final boolean modeYawValid = yawMode.peakCount > 15;
         final boolean modePitchValid = pitchMode.peakCount > 15;
         VectorFeature.MODE_YAW.put(features, (float) modeYaw);
@@ -53,9 +56,11 @@ public final class AimModeTracker {
         VectorFeature.MODE_PITCH_VALID.put(features, modePitchValid);
         VectorFeature.DELTA_DOTS_YAW.put(features, modeYawValid ? (float) deltaDotsYaw : 0.0f);
         VectorFeature.DELTA_DOTS_PITCH.put(features, modePitchValid ? (float) deltaDotsPitch : 0.0f);
+
     }
 
     public void reset() {
+
         yawMode.clear();
         pitchMode.clear();
         lastYawDelta = 0.0;
@@ -64,9 +69,11 @@ public final class AimModeTracker {
         modePitch = 0.0;
         deltaDotsYaw = 0.0;
         deltaDotsPitch = 0.0;
+
     }
 
     private void trackYaw(final float fromYaw, final float toYaw, final double yawAbs) {
+
         final double divisor = gcd(yawAbs, lastYawDelta);
         if (yawAbs <= 0.0 || yawAbs >= 5.0 || divisor <= MINIMUM_DIVISOR) {
             return;
@@ -79,9 +86,11 @@ public final class AimModeTracker {
             yawMode.add(divisor, Math.max(0.001, yawUlp * 2.0));
         }
         lastYawDelta = yawAbs;
+
     }
 
     private void trackPitch(final double pitchAbs) {
+
         final double divisor = gcd(pitchAbs, lastPitchDelta);
         if (pitchAbs <= 0.0 || pitchAbs >= 5.0 || divisor <= MINIMUM_DIVISOR) {
             return;
@@ -90,9 +99,11 @@ public final class AimModeTracker {
             pitchMode.add(divisor, 0.001);
         }
         lastPitchDelta = pitchAbs;
+
     }
 
     private static double gcd(final double first, final double second) {
+
         if (first == 0.0) {
             return 0.0;
         }
@@ -109,6 +120,7 @@ public final class AimModeTracker {
             b = remainder;
         }
         return a;
+
     }
 
     private static final class RunningMode {
@@ -119,10 +131,13 @@ public final class AimModeTracker {
         private int peakCount;
 
         int size() {
+
             return window.size();
+
         }
 
         void add(final double value, final double bucketWidth) {
+
             if (window.size() >= 80) {
                 evictOldest();
             }
@@ -135,9 +150,11 @@ public final class AimModeTracker {
             }
             popularity.put(value, 1);
             window.add(value);
+
         }
 
         void refreshPeak() {
+
             int max = 0;
             double mostPopular = 0.0;
             for (final Map.Entry<Double, Integer> entry : popularity.entrySet()) {
@@ -148,16 +165,20 @@ public final class AimModeTracker {
             }
             peakValue = mostPopular;
             peakCount = max;
+
         }
 
         void clear() {
+
             window.clear();
             popularity.clear();
             peakValue = 0.0;
             peakCount = 0;
+
         }
 
         private void evictOldest() {
+
             final Double oldest = window.poll();
             if (oldest == null) {
                 return;
@@ -168,6 +189,7 @@ public final class AimModeTracker {
             } else {
                 popularity.put(oldest, count - 1);
             }
+
         }
 
     }

@@ -15,48 +15,66 @@ public final class AimSession {
     private boolean active;
 
     public synchronized @NotNull AimState activate() {
+
         active = true;
         return state;
+
     }
 
     public synchronized boolean isCurrent(final @Nullable AimState expected) {
+
         return active && state == expected;
+
     }
 
     public synchronized void deactivate() {
+
         if (active) {
             reset();
         }
+
     }
 
     public synchronized void reset() {
+
         state = new AimState();
         history.clear();
         combatActivity.reset();
         active = false;
+
     }
 
     public synchronized void clearHistory() {
+
         history.clear();
+
     }
 
     public synchronized void push(final @NotNull AimFrame frame) {
+
         history.addFrame(frame);
+
     }
 
     public synchronized @Nullable AimFrame[] snapshot(final int window) {
+
         return history.latest(window);
+
     }
 
     public synchronized void resize(final int size) {
+
         if (history.capacity() != size) {
             history = new FrameHistory(size);
         }
+
     }
 
     public synchronized @Nullable AimFrame[] pollSnapshot(final int step) {
+
         final List<AimFrame> frames = history.pollSnapshot(step);
         return frames == null ? null : frames.toArray(AimFrame[]::new);
+
     }
 
 }

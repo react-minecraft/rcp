@@ -7,10 +7,13 @@ import org.jetbrains.annotations.Nullable;
 public final class HeldItemClassifier {
 
     private HeldItemClassifier() {
+
         throw new UnsupportedOperationException("This is a utility class and cannot be instantiated");
+
     }
 
     public static int classify(final @Nullable ItemStack item) {
+
         if (item == null || item.getType().isAir()) {
             return 1;
         }
@@ -49,6 +52,7 @@ public final class HeldItemClassifier {
             return 11;
         }
         return type.isBlock() ? 8 : 0;
+
     }
 
 }

@@ -23,10 +23,13 @@ public final class FlowerCodec {
             final @NotNull String playerName,
             final @Nullable String token
     ) {
+
         if (frames.length % FEATURES_PER_FRAME != 0) {
             throw new IllegalArgumentException("Flower frames must be whole rotation samples");
         }
-        // The sample stores every pair pitch first; the model reads yaw (x) first, so each pair is swapped.
+        /*
+         * The sample stores every pair pitch first; the model reads yaw (x) first, so each pair is swapped.
+         */
         final float[] values = new float[frames.length];
         for (int i = 0; i < frames.length; i += 2) {
             values[i] = finite(frames[i + 1]);
@@ -41,17 +44,21 @@ public final class FlowerCodec {
                 FlowerRequest.createFlowerRequest(builder, tokenOffset, nameOffset, framesOffset)
         );
         return builder.sizedByteArray();
+
     }
 
 
     private static float finite(final float value) {
+
         if (!Float.isFinite(value)) {
             throw new IllegalArgumentException("Nonfinite Flower rotation");
         }
         return value;
+
     }
 
     public static double decodeProbability(final byte @NotNull [] body) {
+
         final ByteBuffer buffer = ByteBuffer.wrap(body);
         if (body.length < 8 || !FlowerResponse.FlowerResponseBufferHasIdentifier(buffer)) {
             throw new IllegalArgumentException("Invalid Flower response; expected GAFR");
@@ -66,6 +73,7 @@ public final class FlowerCodec {
             throw new IllegalArgumentException("Invalid Flower probability");
         }
         return probability;
+
     }
 
 }

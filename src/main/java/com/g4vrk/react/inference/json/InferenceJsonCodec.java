@@ -20,9 +20,11 @@ public final class InferenceJsonCodec {
     }
 
     public static @NotNull String writeObject(final @NotNull Map<String, ?> values) {
+
         final StringBuilder output = new StringBuilder(256);
         appendObject(output, values, 0);
         return output.toString();
+
     }
 
     /**
@@ -30,10 +32,12 @@ public final class InferenceJsonCodec {
      */
     @SuppressWarnings("unchecked")
     public static @NotNull Map<String, Object> readObject(final @NotNull String json) {
+
         if (!(new Parser(json).readDocument() instanceof Map<?, ?> object)) {
             throw new IllegalArgumentException("Expected a JSON object");
         }
         return (Map<String, Object>) object;
+
     }
 
     private static void appendObject(
@@ -41,6 +45,7 @@ public final class InferenceJsonCodec {
             final @NotNull Map<String, ?> values,
             final int depth
     ) {
+
         checkDepth(depth);
         output.append('{');
 
@@ -58,6 +63,7 @@ public final class InferenceJsonCodec {
         }
 
         output.append('}');
+
     }
 
     private static void appendValue(
@@ -65,6 +71,7 @@ public final class InferenceJsonCodec {
             final Object value,
             final int depth
     ) {
+
         checkDepth(depth);
 
         if (value == null) {
@@ -80,24 +87,28 @@ public final class InferenceJsonCodec {
                     "Unsupported inference JSON value type: " + value.getClass().getName()
             );
         }
+
     }
 
     private static void appendNumber(
             final @NotNull StringBuilder output,
             final @NotNull Number number
     ) {
+
         if ((number instanceof Double doubleValue && !Double.isFinite(doubleValue))
                 || (number instanceof Float floatValue && !Float.isFinite(floatValue))) {
             throw new IllegalArgumentException("JSON numbers must be finite");
         }
 
         output.append(number);
+
     }
 
     private static void appendString(
             final @NotNull StringBuilder output,
             final @NotNull String value
     ) {
+
         output.append('"');
 
         for (int i = 0, length = value.length(); i < length; i++) {
@@ -126,12 +137,15 @@ public final class InferenceJsonCodec {
         }
 
         output.append('"');
+
     }
 
     private static void checkDepth(final int depth) {
+
         if (depth > MAX_NESTING_DEPTH) {
             throw new IllegalArgumentException("JSON nesting depth exceeds " + MAX_NESTING_DEPTH);
         }
+
     }
 
     private static final class Parser {
@@ -140,10 +154,13 @@ public final class InferenceJsonCodec {
         private int index;
 
         private Parser(final @NotNull String input) {
+
             this.input = input;
+
         }
 
         private Object readDocument() {
+
             final Object value = readValue(1);
             skipWhitespace();
 
@@ -152,9 +169,11 @@ public final class InferenceJsonCodec {
             }
 
             return value;
+
         }
 
         private Object readValue(final int depth) {
+
             checkDepth(depth);
             skipWhitespace();
 
@@ -181,9 +200,11 @@ public final class InferenceJsonCodec {
                 default:
                     return readNumber().doubleValue();
             }
+
         }
 
         private Map<String, Object> readObjectValue(final int depth) {
+
             expect('{');
             final Map<String, Object> values = new LinkedHashMap<>();
             skipWhitespace();
@@ -211,9 +232,11 @@ public final class InferenceJsonCodec {
 
                 expect(',');
             }
+
         }
 
         private List<Object> readArray(final int depth) {
+
             expect('[');
             final List<Object> values = new ArrayList<>();
             skipWhitespace();
@@ -232,9 +255,11 @@ public final class InferenceJsonCodec {
 
                 expect(',');
             }
+
         }
 
         private String readString() {
+
             expect('"');
             final StringBuilder value = new StringBuilder();
 
@@ -275,9 +300,11 @@ public final class InferenceJsonCodec {
             }
 
             throw error("Unterminated string");
+
         }
 
         private char readUnicodeCharacter() {
+
             if (index + 4 > input.length()) {
                 throw error("Incomplete Unicode escape");
             }
@@ -295,17 +322,21 @@ public final class InferenceJsonCodec {
             }
 
             return (char) value;
+
         }
 
         private void readLiteral(final @NotNull String literal) {
+
             if (!input.startsWith(literal, index)) {
                 throw error("Invalid JSON literal");
             }
 
             index += literal.length();
+
         }
 
         private BigDecimal readNumber() {
+
             final int start = index;
             consume('-');
 
@@ -334,9 +365,11 @@ public final class InferenceJsonCodec {
             } catch (final NumberFormatException ex) {
                 throw error("Invalid JSON number");
             }
+
         }
 
         private void readDigits(final boolean required) {
+
             final int start = index;
 
             while (hasDigit()) {
@@ -346,18 +379,22 @@ public final class InferenceJsonCodec {
             if (required && start == index) {
                 throw error("Expected a digit");
             }
+
         }
 
         private boolean hasDigit() {
+
             if (!hasRemaining()) {
                 return false;
             }
 
             final char character = input.charAt(index);
             return character >= '0' && character <= '9';
+
         }
 
         private void skipWhitespace() {
+
             while (hasRemaining()) {
                 final char character = input.charAt(index);
 
@@ -368,29 +405,38 @@ public final class InferenceJsonCodec {
 
                 index++;
             }
+
         }
 
         private void expect(final char expected) {
+
             if (!consume(expected)) {
                 throw error("Expected '" + expected + "'");
             }
+
         }
 
         private boolean consume(final char expected) {
+
             if (!hasRemaining() || input.charAt(index) != expected) {
                 return false;
             }
 
             index++;
             return true;
+
         }
 
         private boolean hasRemaining() {
+
             return index < input.length();
+
         }
 
         private @NotNull IllegalArgumentException error(final @NotNull String message) {
+
             return new IllegalArgumentException(message + " at index " + index);
+
         }
     }
 }

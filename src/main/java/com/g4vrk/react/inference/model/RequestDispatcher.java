@@ -36,31 +36,41 @@ public final class RequestDispatcher {
     private final PlayerInputGuards inputGuards = new PlayerInputGuards();
 
     public RequestDispatcher(final @NotNull RCPEnvironment environment, final @NotNull InferenceServer server) {
+
         this.environment = environment;
         this.server = server;
         this.logger = environment.logger();
+
     }
 
     /**
      * Serializes a player's model input with reset and removal.
      */
     public @NotNull Object playerLock(final @NotNull UUID player) {
+
         return inputGuards.lock(player);
+
     }
 
     public long inputGeneration(final @NotNull UUID player) {
+
         return inputGuards.generation(player);
+
     }
 
     public void invalidateInput(final @NotNull UUID player) {
+
         inputGuards.invalidate(player);
+
     }
 
     /**
      * Sends later requests through a rebuilt server; requests already sent finish on the old one.
      */
     public void use(final @NotNull InferenceServer server) {
+
         this.server = server;
+
     }
 
     /**
@@ -69,6 +79,7 @@ public final class RequestDispatcher {
      * @return the claim, or null when the player is not checked, the model is off or a request is in flight
      */
     public @Nullable Claim tryStart(final @NotNull RCPPlayer player, final @NotNull ModelId model) {
+
         if (!player.checked() || !server.isModelEnabled(model)) {
             return null;
         }
@@ -79,17 +90,20 @@ public final class RequestDispatcher {
             }
             return new Claim(slots, model, slots.generation.get());
         }
+
     }
 
     /**
      * Gives the claimed slot back when the model had nothing to send after all.
      */
     public void cancel(final @NotNull Claim claim) {
+
         synchronized (claim.slots) {
             if (claim.slots.generation.get() == claim.generation) {
                 claim.slots.slot(claim.model).set(false);
             }
         }
+
     }
 
     /**
@@ -103,6 +117,7 @@ public final class RequestDispatcher {
             final @NotNull Claim claim,
             final @NotNull Function<String, HttpRequest> encoder
     ) {
+
         final InferenceServer server = this.server;
         final Slots slots = claim.slots;
         final long generation = claim.generation;
@@ -142,12 +157,14 @@ public final class RequestDispatcher {
             }
             logger.warn("Could not send the {} request for {}", model.id().displayName(), name, ex);
         }
+
     }
 
     /**
      * Drops answers still in flight for the player and frees every slot.
      */
     public void reset(final @NotNull UUID player) {
+
         final Slots slots = players.get(player);
         if (slots != null) {
             synchronized (slots) {
@@ -155,9 +172,11 @@ public final class RequestDispatcher {
                 slots.requesting.values().forEach(flag -> flag.set(false));
             }
         }
+
     }
 
     public void remove(final @NotNull UUID player) {
+
         final Slots slots = players.get(player);
         if (slots != null) {
             synchronized (slots) {
@@ -166,6 +185,7 @@ public final class RequestDispatcher {
                 players.remove(player, slots);
             }
         }
+
     }
 
     private @Nullable InferenceResult read(
@@ -173,6 +193,7 @@ public final class RequestDispatcher {
             final @NotNull AimModel model,
             final @NotNull HttpResponse<byte[]> response
     ) {
+
         final byte[] body = response.body();
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
             logger.warn(
@@ -198,18 +219,23 @@ public final class RequestDispatcher {
                 answer.threshold(),
                 answer.enforcement()
         );
+
     }
 
     private void logFailure(final @NotNull String name, final @NotNull AimModel model, final @NotNull Throwable failure) {
+
         if (LimitedBodyHandler.isTooLarge(failure)) {
             logger.warn("The {} answer for {} is too large", model.id().displayName(), name);
         } else if (!(failure instanceof CancellationException)) {
             logger.warn("Could not send the {} request for {}", model.id().displayName(), name, failure);
         }
+
     }
 
     private @NotNull Slots slots(final @NotNull UUID player) {
+
         return players.computeIfAbsent(player, ignored -> new Slots());
+
     }
 
     private static final class Slots {
@@ -218,13 +244,17 @@ public final class RequestDispatcher {
         private final AtomicLong generation = new AtomicLong();
 
         private Slots() {
+
             for (final ModelId model : ModelId.values()) {
                 requesting.put(model, new AtomicBoolean());
             }
+
         }
 
         private @NotNull AtomicBoolean slot(final @NotNull ModelId model) {
+
             return requesting.get(model);
+
         }
 
     }
@@ -239,9 +269,11 @@ public final class RequestDispatcher {
         private final long generation;
 
         private Claim(final Slots slots, final ModelId model, final long generation) {
+
             this.slots = slots;
             this.model = model;
             this.generation = generation;
+
         }
 
     }

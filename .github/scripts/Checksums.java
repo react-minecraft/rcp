@@ -21,6 +21,7 @@ import java.util.HexFormat;
 public final class Checksums {
 
     public static void main(final String[] args) throws Exception {
+
         if (args.length < 6) {
             throw new IllegalArgumentException("usage: Checksums <title> <version> <channel> <commit> <api-version> <file>...");
         }
@@ -58,6 +59,7 @@ public final class Checksums {
         Files.writeString(directory.resolve("checksums.txt.sig"),
                 Base64.getEncoder().encodeToString(signer.sign()) + "\n", StandardCharsets.US_ASCII);
         System.out.print(text);
+
     }
 
 }

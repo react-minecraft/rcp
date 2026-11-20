@@ -30,22 +30,29 @@ public final class FlowerModel implements AimModel {
      * @param step new rotations between two requests, from {@code models/flower.yml}
      */
     public FlowerModel(final @NotNull ModelId id, final @NotNull RequestDispatcher dispatcher, final int step) {
+
         this.id = id;
         this.dispatcher = dispatcher;
         this.step = Math.max(1, step);
+
     }
 
     public void step(final int step) {
+
         this.step = Math.max(1, step);
+
     }
 
     @Override
     public @NotNull ModelId id() {
+
         return id;
+
     }
 
     @Override
     public void onRotation(final @NotNull RCPPlayer player, final float @NotNull [] sample) {
+
         if (!player.inCombat()) {
             return;
         }
@@ -71,16 +78,21 @@ public final class FlowerModel implements AimModel {
         );
         final String name = player.name();
         dispatcher.send(player, this, claim, token -> new HttpRequest(FlowerCodec.encodeRequest(snapshot, name, token)));
+
     }
 
     @Override
     public @NotNull ModelAnswer readResponse(final byte @NotNull [] body) {
+
         return new ModelAnswer(FlowerCodec.decodeProbability(body), Double.NaN, true);
+
     }
 
     @Override
     public void resetPlayer(final @NotNull UUID player) {
+
         samples.remove(player);
+
     }
 
 }

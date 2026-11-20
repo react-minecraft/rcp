@@ -34,6 +34,7 @@ public final class ModelService implements RCPPlayerListener {
             final @NotNull InferenceServer server,
             final @NotNull InferenceConfigs configs
     ) {
+
         this.dispatcher = new RequestDispatcher(environment, server);
         this.flowerBaseline = new FlowerModel(ModelId.FLOWER_BASELINE, dispatcher, configs.flower().step());
         this.flowerUltra = new FlowerModel(ModelId.FLOWER_ULTRA, dispatcher, configs.flower().step());
@@ -42,24 +43,32 @@ public final class ModelService implements RCPPlayerListener {
 
         models.packetListeners().forEach(environment.listeners()::register);
         environment.listen(this);
+
     }
 
     public @NotNull AimModels models() {
+
         return models;
+
     }
 
     public void use(final @NotNull InferenceServer server) {
+
         dispatcher.use(server);
+
     }
 
     public void reload(final @NotNull InferenceConfigs configs) {
+
         flowerBaseline.step(configs.flower().step());
         flowerUltra.step(configs.flower().step());
         vector.combatTicks(configs.vector().combatTicks());
+
     }
 
     @Override
     public void onRotation(final @NotNull RCPPlayer player, final float @NotNull [] sample) {
+
         final long generation = dispatcher.inputGeneration(player.uniqueId());
         synchronized (dispatcher.playerLock(player.uniqueId())) {
             if (generation != dispatcher.inputGeneration(player.uniqueId())) {
@@ -69,29 +78,36 @@ public final class ModelService implements RCPPlayerListener {
                 model.onRotation(player, sample);
             }
         }
+
     }
 
     @Override
     public void onReload(final @NotNull RCPPlayer player) {
+
         onReset(player.uniqueId());
+
     }
 
     @Override
     public void onReset(final @NotNull UUID player) {
+
         synchronized (dispatcher.playerLock(player)) {
             dispatcher.invalidateInput(player);
             dispatcher.reset(player);
             models.resetPlayer(player);
         }
+
     }
 
     @Override
     public void onQuit(final @NotNull UUID player) {
+
         synchronized (dispatcher.playerLock(player)) {
             dispatcher.invalidateInput(player);
             dispatcher.remove(player);
             models.removePlayer(player);
         }
+
     }
 
 }

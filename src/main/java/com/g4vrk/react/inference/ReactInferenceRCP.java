@@ -34,6 +34,7 @@ public final class ReactInferenceRCP extends RCPProvider {
     private LinkCommand linkCommand;
 
     public ReactInferenceRCP(final @NotNull RCPEnvironment environment) {
+
         super(environment);
         this.environment = environment;
         final ActionRegistry<Audience> registry = new SimpleActionRegistry<>(true);
@@ -43,21 +44,27 @@ public final class ReactInferenceRCP extends RCPProvider {
                 ";"
         );
         this.actionParser = new SimpleActionParser<>(registry);
+
     }
 
     /**
      * The running RCP, for addons that read the models.
      */
     public static @Nullable ReactInferenceRCP instance() {
+
         return instance;
+
     }
 
     public @NotNull AimModels models() {
+
         return models.models();
+
     }
 
     @Override
     public void onEnable() throws Exception {
+
         final InferenceConfigs configs = InferenceConfigs.load(environment.directory(), environment.logger());
         connection = new ConnectionService(environment, configs);
         models = new ModelService(environment, connection.server(), configs);
@@ -76,22 +83,27 @@ public final class ReactInferenceRCP extends RCPProvider {
         connection.refreshStatus();
         final List<String> modelIds = models.models().all().stream().map(model -> model.id().identity()).toList();
         environment.services().register(InferenceApi.class, () -> modelIds);
+
     }
 
     @Override
     public void onReload() throws Exception {
+
         final InferenceConfigs configs = InferenceConfigs.load(environment.directory(), environment.logger());
         models.reload(configs);
         linkCommand.reload(actionParser, configs.actions());
         connection.reload(configs);
+
     }
 
     @Override
     public void onDisable() {
+
         instance = null;
         if (connection != null) {
             connection.shutdown();
         }
+
     }
 
 }
