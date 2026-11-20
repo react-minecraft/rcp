@@ -40,7 +40,7 @@ public final class VectorModel implements AimModel {
     ) {
         this.environment = environment;
         this.dispatcher = dispatcher;
-        this.stream = new AimStreamService(environment, combatTicks, this::onFrame);
+        this.stream = new AimStreamService(environment, dispatcher, combatTicks, this::onFrame);
     }
 
     public void combatTicks(final long combatTicks) {

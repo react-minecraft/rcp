@@ -6,6 +6,7 @@ import com.g4vrk.react.api.rcp.environment.RCPEnvironment;
 import com.g4vrk.react.api.rcp.player.CombatTarget;
 import com.g4vrk.react.api.rcp.player.RCPPlayer;
 import com.g4vrk.react.api.rcp.player.registry.RCPPlayerRegistry;
+import com.g4vrk.react.inference.model.RequestDispatcher;
 import com.g4vrk.react.inference.model.vector.model.AimFrame;
 import com.g4vrk.react.inference.model.vector.session.AimSession;
 import com.g4vrk.react.inference.model.vector.session.AimState;
@@ -39,6 +40,7 @@ public final class AimStreamService {
 
     private static final List<String> DATASET_COLUMNS = List.of(AimFrame.csvHeader().substring("is_cheating,".length()).split(","));
     private static final TickSchedule CAPTURE_SCHEDULE = TickSchedule.instant();
+    private final RequestDispatcher dispatcher;
     private final ListenerRegistry events;
     private final RCPPlayerRegistry players;
     private final Scheduler scheduler;
@@ -49,10 +51,12 @@ public final class AimStreamService {
 
     public AimStreamService(
             final @NotNull RCPEnvironment environment,
+            final @NotNull RequestDispatcher dispatcher,
             final long combatTicks,
             final @NotNull BiConsumer<RCPPlayer, AimSession> onFrame
     ) {
 
+        this.dispatcher = dispatcher;
         this.events = environment.listeners();
         this.players = environment.players();
         this.scheduler = environment.scheduler();
@@ -75,9 +79,11 @@ public final class AimStreamService {
 
     public void removePlayerData(final @NotNull UUID uuid) {
 
-        final AimSession removed = playerData.remove(uuid);
-        if (removed != null) {
-            removed.reset();
+        synchronized (dispatcher.playerLock(uuid)) {
+            final AimSession removed = playerData.remove(uuid);
+            if (removed != null) {
+                removed.reset();
+            }
         }
 
     }
@@ -88,13 +94,25 @@ public final class AimStreamService {
             final @NotNull PacketReceiveEvent event
     ) {
 
-        onPacket(uuid, bukkitPlayer, claimPlayerData(uuid), event);
+        final long generation = dispatcher.inputGeneration(uuid);
+        synchronized (dispatcher.playerLock(uuid)) {
+            if (generation != dispatcher.inputGeneration(uuid)) {
+                return;
+            }
+            onPacket(uuid, bukkitPlayer, claimPlayerData(uuid), event);
+        }
 
     }
 
     public void onPacket(final @NotNull RCPPlayer player, final @NotNull PacketReceiveEvent event) {
 
-        onPacket(player.uniqueId(), player.bukkit(), claimPlayerData(player.uniqueId()), event);
+        final long generation = dispatcher.inputGeneration(player.uniqueId());
+        synchronized (dispatcher.playerLock(player.uniqueId())) {
+            if (generation != dispatcher.inputGeneration(player.uniqueId())) {
+                return;
+            }
+            onPacket(player.uniqueId(), player.bukkit(), claimPlayerData(player.uniqueId()), event);
+        }
 
     }
 
@@ -184,18 +202,20 @@ public final class AimStreamService {
         final RCPPlayer player;
         final AimFrame frame;
         final boolean inCombat;
-        synchronized (data) {
-            player = players.get(uuid);
-            if (!bukkitPlayer.isOnline() || playerData.get(uuid) != data || !data.isCurrent(state)) {
-                return;
+        synchronized (dispatcher.playerLock(uuid)) {
+            synchronized (data) {
+                player = players.get(uuid);
+                if (!bukkitPlayer.isOnline() || playerData.get(uuid) != data || !data.isCurrent(state)) {
+                    return;
+                }
+                resolvePendingTarget(bukkitPlayer, player, state);
+                frame = state.capture(bukkitPlayer, resolveTarget(data, state), yaw, pitch);
+                if (player == null) {
+                    return;
+                }
+                inCombat = data.combatActivity.isActive();
+                recordFrame(player, data, frame);
             }
-            resolvePendingTarget(bukkitPlayer, player, state);
-            frame = state.capture(bukkitPlayer, resolveTarget(data, state), yaw, pitch);
-            if (player == null) {
-                return;
-            }
-            inCombat = data.combatActivity.isActive();
-            recordFrame(player, data, frame);
         }
         if (data.isCurrent(state)) {
             events.post(new ModelFrameEvent(

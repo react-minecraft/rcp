@@ -60,8 +60,14 @@ public final class ModelService implements RCPPlayerListener {
 
     @Override
     public void onRotation(final @NotNull RCPPlayer player, final float @NotNull [] sample) {
-        for (final AimModel model : models.all()) {
-            model.onRotation(player, sample);
+        final long generation = dispatcher.inputGeneration(player.uniqueId());
+        synchronized (dispatcher.playerLock(player.uniqueId())) {
+            if (generation != dispatcher.inputGeneration(player.uniqueId())) {
+                return;
+            }
+            for (final AimModel model : models.all()) {
+                model.onRotation(player, sample);
+            }
         }
     }
 
@@ -72,14 +78,20 @@ public final class ModelService implements RCPPlayerListener {
 
     @Override
     public void onReset(final @NotNull UUID player) {
-        dispatcher.reset(player);
-        models.resetPlayer(player);
+        synchronized (dispatcher.playerLock(player)) {
+            dispatcher.invalidateInput(player);
+            dispatcher.reset(player);
+            models.resetPlayer(player);
+        }
     }
 
     @Override
     public void onQuit(final @NotNull UUID player) {
-        dispatcher.remove(player);
-        models.removePlayer(player);
+        synchronized (dispatcher.playerLock(player)) {
+            dispatcher.invalidateInput(player);
+            dispatcher.remove(player);
+            models.removePlayer(player);
+        }
     }
 
 }

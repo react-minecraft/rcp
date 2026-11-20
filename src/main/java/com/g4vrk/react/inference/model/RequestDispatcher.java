@@ -33,11 +33,27 @@ public final class RequestDispatcher {
     private volatile InferenceServer server;
     private final Logger logger;
     private final Map<UUID, Slots> players = new ConcurrentHashMap<>();
+    private final PlayerInputGuards inputGuards = new PlayerInputGuards();
 
     public RequestDispatcher(final @NotNull RCPEnvironment environment, final @NotNull InferenceServer server) {
         this.environment = environment;
         this.server = server;
         this.logger = environment.logger();
+    }
+
+    /**
+     * Serializes a player's model input with reset and removal.
+     */
+    public @NotNull Object playerLock(final @NotNull UUID player) {
+        return inputGuards.lock(player);
+    }
+
+    public long inputGeneration(final @NotNull UUID player) {
+        return inputGuards.generation(player);
+    }
+
+    public void invalidateInput(final @NotNull UUID player) {
+        inputGuards.invalidate(player);
     }
 
     /**
