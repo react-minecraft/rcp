@@ -48,6 +48,7 @@ public final class LimitedBodyHandler implements HttpResponse.BodyHandler<byte[]
         private final CompletableFuture<byte[]> body = new CompletableFuture<>();
 
         private Flow.Subscription subscription;
+        private boolean done;
 
         private LimitedBodySubscriber(final int maximumBytes) {
 
@@ -74,18 +75,27 @@ public final class LimitedBodyHandler implements HttpResponse.BodyHandler<byte[]
         @Override
         public void onNext(final @NotNull List<ByteBuffer> buffers) {
 
+            if (done) {
+                return;
+            }
             for (final ByteBuffer buffer : buffers) {
                 final int remaining = buffer.remaining();
 
                 if (remaining > maximumBytes - output.size()) {
+                    done = true;
                     subscription.cancel();
                     body.completeExceptionally(new TooLargeException(maximumBytes));
                     return;
                 }
 
-                final byte[] bytes = new byte[remaining];
-                buffer.get(bytes);
-                output.write(bytes, 0, bytes.length);
+                if (buffer.hasArray()) {
+                    output.write(buffer.array(), buffer.arrayOffset() + buffer.position(), remaining);
+                    buffer.position(buffer.limit());
+                } else {
+                    final byte[] bytes = new byte[remaining];
+                    buffer.get(bytes);
+                    output.write(bytes, 0, bytes.length);
+                }
             }
 
             subscription.request(1);
@@ -95,6 +105,10 @@ public final class LimitedBodyHandler implements HttpResponse.BodyHandler<byte[]
         @Override
         public void onError(final @NotNull Throwable throwable) {
 
+            if (done) {
+                return;
+            }
+            done = true;
             body.completeExceptionally(throwable);
 
         }
@@ -102,6 +116,10 @@ public final class LimitedBodyHandler implements HttpResponse.BodyHandler<byte[]
         @Override
         public void onComplete() {
 
+            if (done) {
+                return;
+            }
+            done = true;
             body.complete(output.toByteArray());
 
         }

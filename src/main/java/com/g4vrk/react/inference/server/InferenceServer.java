@@ -241,8 +241,7 @@ public final class InferenceServer {
             try {
                 final Map<String, Object> json = readJson(response);
                 if (!isSuccessful(response)) {
-                    final Object detail = json.get("detail");
-                    return ConnectionStatus.failed(detail != null ? String.valueOf(detail) : http(response));
+                    return ConnectionStatus.failed(detail(json, response));
                 }
                 final Set<ModelId> models = readEnabledModels(json);
                 publishIfCurrent(epoch, () -> {
@@ -332,7 +331,7 @@ public final class InferenceServer {
             }
             if (!isSuccessful(response) || !(json.get("device_code") instanceof String deviceCode)
                     || !(json.get("expires_in") instanceof Number expiresIn)) {
-                return CompletableFuture.completedFuture(ConnectResult.refused(String.valueOf(json.get("detail"))));
+                return CompletableFuture.completedFuture(ConnectResult.refused(detail(json, response)));
             }
             final long interval = json.get("interval") instanceof Number number ? Math.max(1L, number.longValue()) : 3L;
             onLink.accept(new DeviceLink(
@@ -466,6 +465,9 @@ public final class InferenceServer {
             final byte[] body
     ) {
 
+        if (closed.get()) {
+            return CompletableFuture.failedFuture(new IllegalStateException("The inference client is closed"));
+        }
         final java.net.http.HttpRequest.Builder builder = java.net.http.HttpRequest.newBuilder(apiUrl(path))
                 .header(RCP_VERSION_HEADER, rcpVersion)
                 .header(PLUGIN_VERSION_HEADER, pluginVersion)
@@ -487,7 +489,15 @@ public final class InferenceServer {
                         .header(RequestSigner.SIGNATURE_HEADER, RequestSigner.sign(keys.getPrivate(), message));
             }
         }
-        return client.sendAsync(withTimeout(builder).build(), BODY_HANDLER);
+        final CompletableFuture<HttpResponse<byte[]>> call = client.sendAsync(withTimeout(builder).build(), BODY_HANDLER);
+        inFlight.add(call);
+        if (closed.get()) {
+            call.cancel(true);
+            inFlight.remove(call);
+            return call;
+        }
+        call.whenComplete((response, failure) -> inFlight.remove(call));
+        return call;
 
     }
 
@@ -506,7 +516,7 @@ public final class InferenceServer {
             return ConnectResult.refused(http(response));
         }
         if (!isSuccessful(response) || !(result.get("api_key") instanceof String accessToken)) {
-            return ConnectResult.refused(String.valueOf(result.get("detail")));
+            return ConnectResult.refused(detail(result, response));
         }
         return new ConnectResult(
                 new Credential(accessToken, keys),
@@ -515,6 +525,13 @@ public final class InferenceServer {
                 "",
                 attempt
         );
+
+    }
+
+    private String detail(final Map<String, Object> json, final HttpResponse<?> response) {
+
+        final Object value = json.get("detail");
+        return value != null ? String.valueOf(value) : http(response);
 
     }
 

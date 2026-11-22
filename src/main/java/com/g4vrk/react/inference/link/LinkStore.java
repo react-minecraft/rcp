@@ -2,6 +2,7 @@ package com.g4vrk.react.inference.link;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -85,10 +86,19 @@ public final class LinkStore {
         final byte[] data = Arrays.copyOf(iv, IV_LENGTH + encrypted.length);
         System.arraycopy(encrypted, 0, data, IV_LENGTH, encrypted.length);
 
-        Files.createDirectories(file.toAbsolutePath().getParent());
-        final Path temporary = file.resolveSibling(file.getFileName() + ".tmp");
-        Files.writeString(temporary, Base64.getEncoder().encodeToString(data), StandardCharsets.US_ASCII);
-        Files.move(temporary, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+        final Path parent = file.toAbsolutePath().getParent();
+        Files.createDirectories(parent);
+        final Path temporary = Files.createTempFile(parent, file.getFileName() + ".", ".tmp");
+        try {
+            Files.writeString(temporary, Base64.getEncoder().encodeToString(data), StandardCharsets.US_ASCII);
+            try {
+                Files.move(temporary, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            } catch (final AtomicMoveNotSupportedException unsupported) {
+                Files.move(temporary, file, StandardCopyOption.REPLACE_EXISTING);
+            }
+        } finally {
+            Files.deleteIfExists(temporary);
+        }
 
     }
 

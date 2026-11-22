@@ -53,13 +53,7 @@ public final class LinkCommand {
     private final Scheduler scheduler;
     private final Logger logger;
 
-    private ExecutableActionList<? super Audience> checking;
-    private ExecutableActionList<? super Audience> requesting;
-    private ExecutableActionList<? super Audience> open;
-    private ExecutableActionList<? super Audience> linked;
-    private ExecutableActionList<? super Audience> failed;
-    private ExecutableActionList<? super Audience> status;
-    private ActionsConfig.Texts texts;
+    private volatile Actions actions;
 
     public LinkCommand(
             final @NotNull Supplier<InferenceServer> server,
@@ -78,13 +72,15 @@ public final class LinkCommand {
     public void reload(final @NotNull ActionParser<Audience> parser, final @NotNull ActionsConfig config) {
 
         final ActionsConfig.Link link = config.link();
-        this.checking = parser.parseAll(link.checking());
-        this.requesting = parser.parseAll(link.requesting());
-        this.open = parser.parseAll(link.open());
-        this.linked = parser.parseAll(link.linked());
-        this.failed = parser.parseAll(link.failed());
-        this.status = parser.parseAll(link.status());
-        this.texts = config.texts();
+        this.actions = new Actions(
+                parser.parseAll(link.checking()),
+                parser.parseAll(link.requesting()),
+                parser.parseAll(link.open()),
+                parser.parseAll(link.linked()),
+                parser.parseAll(link.failed()),
+                parser.parseAll(link.status()),
+                config.texts()
+        );
 
     }
 
@@ -104,11 +100,12 @@ public final class LinkCommand {
 
     private void execute(final @NotNull CommandSender sender, final @NotNull String code) {
 
+        final Actions snapshot = this.actions;
         final InferenceServer current = server.get();
         final CompletableFuture<InferenceServer.ConnectResult> connection;
         if (code.isEmpty()) {
-            requesting.run(sender);
-            connection = current.connectWithLink(link -> run(sender, open, Map.of(
+            snapshot.requesting().run(sender);
+            connection = current.connectWithLink(link -> run(sender, snapshot.open(), Map.of(
                     "{url}",
                     link.url(),
                     "{code}",
@@ -117,7 +114,7 @@ public final class LinkCommand {
                     Long.toString(Math.max(1L, link.expiresInSeconds() / 60L))
             )));
         } else {
-            checking.run(sender);
+            snapshot.checking().run(sender);
             connection = current.connect(code);
         }
         connection.whenComplete((result, failure) -> {
@@ -140,7 +137,8 @@ public final class LinkCommand {
             } else if (result.problem() != null) {
                 fail(sender, result.problem());
             } else {
-                run(sender, status, Map.of("{server}", result.server(), "{models}", texts.describe(result.models())));
+                final Actions snapshot = this.actions;
+                run(sender, snapshot.status(), Map.of("{server}", result.server(), "{models}", snapshot.texts().describe(result.models())));
             }
         });
 
@@ -152,6 +150,7 @@ public final class LinkCommand {
             final InferenceServer.ConnectResult result
     ) {
 
+        final Actions snapshot = this.actions;
         try {
             onLinked.accept(current, result);
         } catch (final Exception exception) {
@@ -159,13 +158,13 @@ public final class LinkCommand {
             fail(sender, String.valueOf(exception.getMessage()));
             return;
         }
-        run(sender, linked, Map.of("{server}", result.server(), "{models}", texts.describe(result.models())));
+        run(sender, snapshot.linked(), Map.of("{server}", result.server(), "{models}", snapshot.texts().describe(result.models())));
 
     }
 
     private void fail(final @NotNull CommandSender sender, final @NotNull String reason) {
 
-        run(sender, failed, Map.of("{reason}", reason));
+        run(sender, this.actions.failed(), Map.of("{reason}", reason));
 
     }
 
@@ -187,6 +186,18 @@ public final class LinkCommand {
         } else {
             scheduler.schedule(response, TickSchedule.instant());
         }
+
+    }
+
+    private record Actions(
+            @NotNull ExecutableActionList<? super Audience> checking,
+            @NotNull ExecutableActionList<? super Audience> requesting,
+            @NotNull ExecutableActionList<? super Audience> open,
+            @NotNull ExecutableActionList<? super Audience> linked,
+            @NotNull ExecutableActionList<? super Audience> failed,
+            @NotNull ExecutableActionList<? super Audience> status,
+            @NotNull ActionsConfig.Texts texts
+    ) {
 
     }
 
