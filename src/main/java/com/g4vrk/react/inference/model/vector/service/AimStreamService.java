@@ -1,7 +1,7 @@
 package com.g4vrk.react.inference.model.vector.service;
 
 import com.g4vrk.react.api.event.rcp.ModelFrameEvent;
-import com.g4vrk.react.api.extension.ListenerRegistry;
+import com.g4vrk.react.api.extension.listener.ListenerRegistry;
 import com.g4vrk.react.api.rcp.environment.RCPEnvironment;
 import com.g4vrk.react.api.rcp.player.CombatTarget;
 import com.g4vrk.react.api.rcp.player.RCPPlayer;

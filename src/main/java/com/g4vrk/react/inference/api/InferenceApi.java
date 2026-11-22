@@ -7,7 +7,9 @@ import java.util.List;
  */
 public interface InferenceApi {
 
-    /** Returns an immutable snapshot of the configured model IDs. */
+    /**
+     * Returns an immutable snapshot of the configured model IDs.
+     */
     List<String> modelIds();
 
 }

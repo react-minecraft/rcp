@@ -1,6 +1,6 @@
 package com.g4vrk.react.inference.bootstrap;
 
-import com.g4vrk.react.api.extension.ExtensionId;
+import com.g4vrk.react.api.extension.meta.ExtensionId;
 import com.g4vrk.react.api.extension.bootstrap.ExtensionBootstrap;
 import com.g4vrk.react.api.extension.bootstrap.ExtensionBootstrapContext;
 import org.jetbrains.annotations.NotNull;
