@@ -7,12 +7,12 @@ import org.jetbrains.annotations.NotNull;
 /**
  * Fixed-size locks and generations for coordinating input with player resets.
  */
-final class PlayerInputGuards {
+final class PlayerInputGuard {
 
     private final Object[] locks = new Object[64];
     private final AtomicLong[] generations = new AtomicLong[64];
 
-    PlayerInputGuards() {
+    PlayerInputGuard() {
 
         for (int i = 0; i < locks.length; i++) {
             locks[i] = new Object();

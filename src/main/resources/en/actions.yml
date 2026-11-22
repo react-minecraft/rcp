@@ -34,7 +34,7 @@ link:
   status:
     - "[msg] <b><gradient:#eb2544:#ff3655>⚡ ʀᴇᴀᴄᴛ</gradient></b> <gray>»</gray> <white>Server <color:#11ff11>{server}</color> linked ✔ <gray>({models})"
 
-# Texts for {models}, {reason} and the %react_model% placeholder (no tags: PlaceholderAPI prints them as they are)
+# TextSet for {models}, {reason} and the %react_model% placeholder (no tags: PlaceholderAPI prints them as they are)
 texts:
 
   not-linked: "Not linked: /react link"

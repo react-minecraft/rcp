@@ -9,11 +9,11 @@ import org.jetbrains.annotations.NotNull;
 /**
  * The models this RCP build runs. Adding a model means adding it here, nothing else.
  */
-public final class AimModels {
+public final class AimModelRegistry {
 
     private final List<AimModel> models;
 
-    public AimModels(final @NotNull List<AimModel> models) {
+    public AimModelRegistry(final @NotNull List<AimModel> models) {
 
         this.models = List.copyOf(models);
 

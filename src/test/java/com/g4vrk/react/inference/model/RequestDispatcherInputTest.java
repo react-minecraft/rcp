@@ -14,7 +14,7 @@ class RequestDispatcherInputTest {
     @Test
     void waitingInputIsRejectedAfterReset() throws Exception {
 
-        final PlayerInputGuards guards = new PlayerInputGuards();
+        final PlayerInputGuard guards = new PlayerInputGuard();
         final UUID player = UUID.randomUUID();
         final CountDownLatch started = new CountDownLatch(1);
         final CompletableFuture<Boolean> accepted;

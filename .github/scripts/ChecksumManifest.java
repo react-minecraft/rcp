@@ -16,16 +16,16 @@ import java.util.HexFormat;
 /**
  * Writes a signed {@code checksums.txt} next to the release files.
  * <p>
- * Usage: {@code java Checksums.java <title> <version> <channel> <commit> <api-version> <file>...}.
+ * Usage: {@code java ChecksumManifest.java <title> <version> <channel> <commit> <api-version> <file>...}.
  * The ed25519 key is read from {@code SIGNING_KEY} as base64 PKCS#8, and the signature goes to
  * {@code checksums.txt.sig} as base64.
  */
-public final class Checksums {
+public final class ChecksumManifest {
 
     public static void main(final String[] args) throws Exception {
 
         if (args.length < 6) {
-            throw new IllegalArgumentException("usage: Checksums <title> <version> <channel> <commit> <api-version> <file>...");
+            throw new IllegalArgumentException("usage: ChecksumManifest <title> <version> <channel> <commit> <api-version> <file>...");
         }
         final String key = System.getenv("SIGNING_KEY");
         if (key == null || key.isBlank()) {

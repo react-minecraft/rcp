@@ -16,7 +16,7 @@ import com.github.retrooper.packetevents.protocol.packettype.PacketType;
 import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientInteractEntity;
 import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientPlayerFlying;
 import com.g4vrk.schedula.task.TickSchedule;
-import com.g4vrk.schedula.task.scheduler.Scheduler;
+import com.g4vrk.schedula.task.scheduler.TaskScheduler;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
@@ -43,7 +43,7 @@ public final class AimStreamService {
     private final RequestDispatcher dispatcher;
     private final ListenerRegistry events;
     private final RCPPlayerRegistry players;
-    private final Scheduler scheduler;
+    private final TaskScheduler<Player> scheduler;
     private final Map<UUID, AimSession> playerData = new ConcurrentHashMap<>();
     private final CopyOnWriteArrayList<Subscription> subscriptions = new CopyOnWriteArrayList<>();
     private final BiConsumer<RCPPlayer, AimSession> onFrame;
@@ -59,7 +59,7 @@ public final class AimStreamService {
         this.dispatcher = dispatcher;
         this.events = environment.listeners();
         this.players = environment.players();
-        this.scheduler = environment.scheduler();
+        this.scheduler = environment.scheduler().<Player>mapEntity(environment.platform()::adaptPlayer);
         this.combatTicks = Math.max(1L, combatTicks);
         this.onFrame = onFrame;
 
@@ -111,7 +111,11 @@ public final class AimStreamService {
             if (generation != dispatcher.inputGeneration(player.uniqueId())) {
                 return;
             }
-            onPacket(player.uniqueId(), player.bukkit(), claimPlayerData(player.uniqueId()), event);
+            final Player nativePlayer = player.unwrap(Player.class);
+            if (nativePlayer == null) {
+                return;
+            }
+            onPacket(player.uniqueId(), nativePlayer, claimPlayerData(player.uniqueId()), event);
         }
 
     }
@@ -251,7 +255,7 @@ public final class AimStreamService {
     private static @Nullable Entity findNearbyMannequin(final @NotNull Player bukkitPlayer, final int entityId) {
 
         for (final Entity entity : EntityRegion.nearby(bukkitPlayer)) {
-            if (EntityRegion.owns(entity) && entity.getEntityId() == entityId && CombatTarget.isMannequin(entity)) {
+            if (EntityRegion.owns(entity) && entity.getEntityId() == entityId && CombatTarget.isMannequinType(entity.getType().getKey().toString())) {
                 return entity;
             }
         }
@@ -266,7 +270,7 @@ public final class AimStreamService {
         }
         final UUID targetId = state.targetId();
         final RCPPlayer targetPlayer = targetId == null ? null : players.get(targetId);
-        final Entity target = targetPlayer == null ? state.mannequin() : targetPlayer.bukkit();
+        final Entity target = targetPlayer == null ? state.mannequin() : targetPlayer.unwrap(Player.class);
         return target != null && EntityRegion.owns(target) ? target : null;
 
     }

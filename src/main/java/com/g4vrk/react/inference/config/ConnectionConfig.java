@@ -7,10 +7,10 @@ import org.spongepowered.configurate.objectmapping.ConfigSerializable;
  * {@code connection.yml}: how long calls to the React site may take.
  */
 @ConfigSerializable
-public record ConnectionConfig(Timeouts timeouts) {
+public record ConnectionConfig(TimeoutConfig timeouts) {
 
     @ConfigSerializable
-    public record Timeouts(Duration connect, Duration call) {
+    public record TimeoutConfig(Duration connect, Duration call) {
     }
 
 }

@@ -32,8 +32,8 @@ public final class RequestDispatcher {
     private final RCPEnvironment environment;
     private volatile InferenceServer server;
     private final Logger logger;
-    private final Map<UUID, Slots> players = new ConcurrentHashMap<>();
-    private final PlayerInputGuards inputGuards = new PlayerInputGuards();
+    private final Map<UUID, SlotState> players = new ConcurrentHashMap<>();
+    private final PlayerInputGuard inputGuards = new PlayerInputGuard();
 
     public RequestDispatcher(final @NotNull RCPEnvironment environment, final @NotNull InferenceServer server) {
 
@@ -83,7 +83,7 @@ public final class RequestDispatcher {
         if (!player.checked() || !server.isModelEnabled(model)) {
             return null;
         }
-        final Slots slots = slots(player.uniqueId());
+        final SlotState slots = slots(player.uniqueId());
         synchronized (slots) {
             if (players.get(player.uniqueId()) != slots || !slots.slot(model).compareAndSet(false, true)) {
                 return null;
@@ -119,7 +119,7 @@ public final class RequestDispatcher {
     ) {
 
         final InferenceServer server = this.server;
-        final Slots slots = claim.slots;
+        final SlotState slots = claim.slots;
         final long generation = claim.generation;
         final long epoch = server.requestEpoch();
         final String name = player.name();
@@ -165,7 +165,7 @@ public final class RequestDispatcher {
      */
     public void reset(final @NotNull UUID player) {
 
-        final Slots slots = players.get(player);
+        final SlotState slots = players.get(player);
         if (slots != null) {
             synchronized (slots) {
                 slots.generation.incrementAndGet();
@@ -177,7 +177,7 @@ public final class RequestDispatcher {
 
     public void remove(final @NotNull UUID player) {
 
-        final Slots slots = players.get(player);
+        final SlotState slots = players.get(player);
         if (slots != null) {
             synchronized (slots) {
                 slots.generation.incrementAndGet();
@@ -232,18 +232,18 @@ public final class RequestDispatcher {
 
     }
 
-    private @NotNull Slots slots(final @NotNull UUID player) {
+    private @NotNull SlotState slots(final @NotNull UUID player) {
 
-        return players.computeIfAbsent(player, ignored -> new Slots());
+        return players.computeIfAbsent(player, ignored -> new SlotState());
 
     }
 
-    private static final class Slots {
+    private static final class SlotState {
 
         private final Map<ModelId, AtomicBoolean> requesting = new EnumMap<>(ModelId.class);
         private final AtomicLong generation = new AtomicLong();
 
-        private Slots() {
+        private SlotState() {
 
             for (final ModelId model : ModelId.values()) {
                 requesting.put(model, new AtomicBoolean());
@@ -264,11 +264,11 @@ public final class RequestDispatcher {
      */
     public static final class Claim {
 
-        private final Slots slots;
+        private final SlotState slots;
         private final ModelId model;
         private final long generation;
 
-        private Claim(final Slots slots, final ModelId model, final long generation) {
+        private Claim(final SlotState slots, final ModelId model, final long generation) {
 
             this.slots = slots;
             this.model = model;

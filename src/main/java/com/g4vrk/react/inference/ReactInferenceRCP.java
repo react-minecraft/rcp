@@ -1,5 +1,6 @@
 package com.g4vrk.react.inference;
 
+import org.bukkit.entity.Player;
 import com.g4vrk.functionalActions.defaults.DefaultActionSet;
 import com.g4vrk.functionalActions.parser.ActionParser;
 import com.g4vrk.functionalActions.parser.impl.SimpleActionParser;
@@ -9,8 +10,8 @@ import com.g4vrk.react.api.rcp.environment.RCPEnvironment;
 import com.g4vrk.react.api.rcp.provider.RCPProvider;
 import com.g4vrk.react.inference.api.InferenceApi;
 import com.g4vrk.react.inference.command.LinkCommand;
-import com.g4vrk.react.inference.config.InferenceConfigs;
-import com.g4vrk.react.inference.model.AimModels;
+import com.g4vrk.react.inference.config.InferenceConfigRegistry;
+import com.g4vrk.react.inference.model.AimModelRegistry;
 import com.g4vrk.react.inference.service.ConnectionService;
 import com.g4vrk.react.inference.service.ModelService;
 import com.g4vrk.text.LegacySerializerRegistry;
@@ -56,7 +57,7 @@ public final class ReactInferenceRCP extends RCPProvider {
 
     }
 
-    public @NotNull AimModels models() {
+    public @NotNull AimModelRegistry models() {
 
         return models.models();
 
@@ -65,7 +66,7 @@ public final class ReactInferenceRCP extends RCPProvider {
     @Override
     public void onEnable() throws Exception {
 
-        final InferenceConfigs configs = InferenceConfigs.load(environment.directory(), environment.logger());
+        final InferenceConfigRegistry configs = InferenceConfigRegistry.load(environment.directory(), environment.logger());
         connection = new ConnectionService(environment, configs);
         models = new ModelService(environment, connection.server(), configs);
         connection.onReplaced(models::use);
@@ -73,7 +74,7 @@ public final class ReactInferenceRCP extends RCPProvider {
         linkCommand = new LinkCommand(
                 connection::server,
                 connection::link,
-                environment.scheduler(),
+                environment.scheduler().<Player>mapEntity(environment.platform()::adaptPlayer),
                 environment.logger()
         );
         linkCommand.reload(actionParser, configs.actions());
@@ -89,7 +90,7 @@ public final class ReactInferenceRCP extends RCPProvider {
     @Override
     public void onReload() throws Exception {
 
-        final InferenceConfigs configs = InferenceConfigs.load(environment.directory(), environment.logger());
+        final InferenceConfigRegistry configs = InferenceConfigRegistry.load(environment.directory(), environment.logger());
         models.reload(configs);
         linkCommand.reload(actionParser, configs.actions());
         connection.reload(configs);

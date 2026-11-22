@@ -58,7 +58,7 @@ public final class InferenceServer {
     private final String rcpVersion;
     private final String pluginVersion;
     private final Map<ModelId, URI> modelUrls;
-    private final ActionsConfig.Reasons reasons;
+    private final ActionsConfig.ReasonSet reasons;
 
     private volatile @Nullable Credential credential;
     private volatile Set<ModelId> enabledModels = Set.of();
@@ -81,7 +81,7 @@ public final class InferenceServer {
             final @NotNull String fingerprint,
             final @NotNull String rcpVersion,
             final @NotNull String pluginVersion,
-            final @NotNull ActionsConfig.Reasons reasons
+            final @NotNull ActionsConfig.ReasonSet reasons
     ) {
 
         this.logger = logger;
@@ -215,11 +215,11 @@ public final class InferenceServer {
      * @param models  every model the account can use, mapped to whether it is enabled
      * @param problem why the check failed, or null
      */
-    public record ConnectionStatus(String server, Map<ModelId, Boolean> models, @Nullable String problem) {
+    public record ConnectionState(String server, Map<ModelId, Boolean> models, @Nullable String problem) {
 
-        static ConnectionStatus failed(final String problem) {
+        static ConnectionState failed(final String problem) {
 
-            return new ConnectionStatus("", Map.of(), problem);
+            return new ConnectionState("", Map.of(), problem);
 
         }
 
@@ -228,29 +228,29 @@ public final class InferenceServer {
     /**
      * Asks the site about this server's link right now and updates the enabled models.
      */
-    public @NotNull CompletableFuture<ConnectionStatus> checkConnection() {
+    public @NotNull CompletableFuture<ConnectionState> checkConnection() {
 
         if (credential == null) {
-            return CompletableFuture.completedFuture(ConnectionStatus.failed(reasons.notLinked()));
+            return CompletableFuture.completedFuture(ConnectionState.failed(reasons.notLinked()));
         }
         final long epoch = requestEpoch.get();
         return get(CHECK_PATH).handle((response, failure) -> {
             if (failure != null) {
-                return ConnectionStatus.failed(String.valueOf(failure.getMessage()));
+                return ConnectionState.failed(String.valueOf(failure.getMessage()));
             }
             try {
                 final Map<String, Object> json = readJson(response);
                 if (!isSuccessful(response)) {
-                    return ConnectionStatus.failed(detail(json, response));
+                    return ConnectionState.failed(detail(json, response));
                 }
                 final Set<ModelId> models = readEnabledModels(json);
                 publishIfCurrent(epoch, () -> {
                     enabledModels = models;
                     nextModelRefresh.set(System.currentTimeMillis() + MODEL_REFRESH_MILLIS);
                 });
-                return new ConnectionStatus(String.valueOf(json.get("server")), readModelStates(json), null);
+                return new ConnectionState(String.valueOf(json.get("server")), readModelStates(json), null);
             } catch (final RuntimeException exception) {
-                return ConnectionStatus.failed(isSuccessful(response)
+                return ConnectionState.failed(isSuccessful(response)
                         ? String.valueOf(exception.getMessage()) : http(response));
             }
         });

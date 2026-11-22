@@ -12,7 +12,7 @@ import org.spongepowered.configurate.objectmapping.ConfigSerializable;
  * {@code actions.yml}: what {@code /react link} shows and the texts put into it and into {@code %react_model%}.
  */
 @ConfigSerializable
-public record ActionsConfig(Link link, Texts texts) {
+public record ActionsConfig(Link link, TextSet texts) {
 
     /**
      * @param checking   while a code is checked
@@ -43,14 +43,14 @@ public record ActionsConfig(Link link, Texts texts) {
      * @param reasons       what {@code {reason}} says
      */
     @ConfigSerializable
-    public record Texts(
+    public record TextSet(
             String notLinked,
             String unavailable,
             String modelEnabled,
             String modelDisabled,
             String separator,
             String none,
-            Reasons reasons
+            ReasonSet reasons
     ) {
 
         /**
@@ -92,7 +92,7 @@ public record ActionsConfig(Link link, Texts texts) {
      * @param http      the site answered with an error, with {@code {status}}
      */
     @ConfigSerializable
-    public record Reasons(String notLinked, String replaced, String expired, String http) {
+    public record ReasonSet(String notLinked, String replaced, String expired, String http) {
     }
 
 }

@@ -78,7 +78,7 @@ jobs:
         SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
       run: |
         channel=$([ "$REACT_RELEASE" = "true" ] && echo release || echo nightly)
-        java .github/scripts/Checksums.java "$TITLE" "${{ steps.dist.outputs.build }}" "$channel" \
+        java .github/scripts/ChecksumManifest.java "$TITLE" "${{ steps.dist.outputs.build }}" "$channel" \
           "${GIT_COMMIT::7}" "${{ steps.dist.outputs.api }}" dist/*.jar
 
     - name: Publish release

@@ -1,8 +1,10 @@
 package com.g4vrk.react.inference.service;
 
+import org.bukkit.Bukkit;
+import org.bukkit.entity.Player;
 import com.g4vrk.react.api.rcp.environment.RCPEnvironment;
 import com.g4vrk.react.inference.config.ActionsConfig;
-import com.g4vrk.react.inference.config.InferenceConfigs;
+import com.g4vrk.react.inference.config.InferenceConfigRegistry;
 import com.g4vrk.react.inference.link.Credential;
 import com.g4vrk.react.inference.link.LinkStore;
 import com.g4vrk.react.inference.link.ServerFingerprint;
@@ -32,16 +34,16 @@ public final class ConnectionService {
     private final LinkStore linkStore;
 
     private Consumer<InferenceServer> onReplaced = server -> { };
-    private volatile ActionsConfig.Texts texts;
+    private volatile ActionsConfig.TextSet texts;
     private volatile InferenceServer server;
     private boolean closed;
     private long statusRevision;
 
-    public ConnectionService(final @NotNull RCPEnvironment environment, final @NotNull InferenceConfigs configs)
+    public ConnectionService(final @NotNull RCPEnvironment environment, final @NotNull InferenceConfigRegistry configs)
             throws IOException {
         this.environment = environment;
         this.logger = environment.logger();
-        this.fingerprint = ServerFingerprint.of(environment.plugin().getServer());
+        this.fingerprint = ServerFingerprint.of(Bukkit.getServer());
         this.linkStore = new LinkStore(environment.directory().resolve(".link"), fingerprint);
         migrateLegacyToken();
         this.texts = configs.actions().texts();
@@ -76,7 +78,7 @@ public final class ConnectionService {
 
     }
 
-    public synchronized void reload(final @NotNull InferenceConfigs configs) throws IOException {
+    public synchronized void reload(final @NotNull InferenceConfigRegistry configs) throws IOException {
 
         texts = configs.actions().texts();
         final InferenceServer previous = server;
@@ -105,7 +107,7 @@ public final class ConnectionService {
         }
         final long revision = ++statusRevision;
         final InferenceServer current = server;
-        final ActionsConfig.Texts currentTexts = texts;
+        final ActionsConfig.TextSet currentTexts = texts;
         if (!current.isLinked()) {
             status(revision, currentTexts.status(false, current.enabledModels()));
             return;
@@ -124,7 +126,7 @@ public final class ConnectionService {
 
     private void status(final long revision, final String status) {
 
-        environment.scheduler().schedule(() -> {
+        environment.scheduler().<Player>mapEntity(environment.platform()::adaptPlayer).schedule(() -> {
             synchronized (this) {
                 if (!closed && statusRevision == revision) {
                     environment.status(status);
@@ -134,7 +136,7 @@ public final class ConnectionService {
 
     }
 
-    private InferenceServer newServer(final InferenceConfigs configs) throws IOException {
+    private InferenceServer newServer(final InferenceConfigRegistry configs) throws IOException {
 
         return new InferenceServer(
                 logger,
@@ -143,7 +145,7 @@ public final class ConnectionService {
                 linkStore.load(),
                 fingerprint,
                 environment.metadata().version(),
-                environment.plugin().getDescription().getVersion(),
+                environment.platform().pluginVersion(),
                 configs.actions().texts().reasons()
         );
 
@@ -155,7 +157,7 @@ public final class ConnectionService {
      */
     private void migrateLegacyToken() {
 
-        final Path legacy = environment.plugin().getDataFolder().toPath().resolve("inference.yml");
+        final Path legacy = environment.platform().dataDirectory().resolve("inference.yml");
         if (!Files.isRegularFile(legacy) || Files.exists(environment.directory().resolve(".link"))) {
             return;
         }

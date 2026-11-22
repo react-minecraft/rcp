@@ -14,7 +14,7 @@ import org.spongepowered.configurate.serialize.SerializationException;
 /**
  * Every file of the RCP, loaded together so a broken file keeps the previous set.
  */
-public record InferenceConfigs(
+public record InferenceConfigRegistry(
         @NotNull ConnectionConfig connection,
         @NotNull FlowerConfig flower,
         @NotNull VectorConfig vector,
@@ -28,10 +28,10 @@ public record InferenceConfigs(
             .step(root -> bracePlaceholders(root.node("link")))
             .build();
 
-    public static @NotNull InferenceConfigs load(final @NotNull Path directory, final @NotNull Logger logger)
+    public static @NotNull InferenceConfigRegistry load(final @NotNull Path directory, final @NotNull Logger logger)
             throws ConfigurateException {
         final String language = language();
-        return new InferenceConfigs(
+        return new InferenceConfigRegistry(
                 file(ConnectionConfig.class, directory, language, "connection.yml", logger, ConfigMigrationChain.none()),
                 file(FlowerConfig.class, directory, language, "models/flower.yml", logger, ConfigMigrationChain.none()),
                 file(VectorConfig.class, directory, language, "models/vector.yml", logger, ConfigMigrationChain.none()),
@@ -50,7 +50,7 @@ public record InferenceConfigs(
 
         return ConfigFile.builder(type)
                 .path(directory.resolve(name))
-                .defaults(InferenceConfigs.class.getClassLoader(), language + "/" + name)
+                .defaults(InferenceConfigRegistry.class.getClassLoader(), language + "/" + name)
                 .migrations(migrations)
                 .logger(logger)
                 .build()

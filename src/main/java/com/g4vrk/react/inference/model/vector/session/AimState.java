@@ -3,7 +3,7 @@ package com.g4vrk.react.inference.model.vector.session;
 import com.g4vrk.react.inference.model.vector.feature.AimModeTracker;
 import com.g4vrk.react.inference.model.vector.feature.HeldItemClassifier;
 import com.g4vrk.react.inference.model.vector.feature.PlayerClientInfo;
-import com.g4vrk.react.inference.model.vector.feature.TargetFeatures;
+import com.g4vrk.react.inference.model.vector.feature.TargetFeature;
 import com.g4vrk.react.inference.model.vector.model.AimFrame;
 import com.g4vrk.react.inference.model.vector.model.VectorFeature;
 import com.g4vrk.react.inference.model.vector.util.MouseMath;
@@ -160,7 +160,7 @@ public final class AimState {
                 && target.getWorld().equals(player.getWorld());
         VectorFeature.TARGET_VALID.put(features, targetValid);
         if (targetValid) {
-            TargetFeatures.writeTo(features, player, target, lastYaw, lastPitch, yaw, pitch);
+            TargetFeature.writeTo(features, player, target, lastYaw, lastPitch, yaw, pitch);
         }
         VectorFeature.HELD_ITEM_CLASS.put(features, HeldItemClassifier.classify(player.getInventory().getItemInMainHand()));
         VectorFeature.PLAYER_PING.put(features, PlayerClientInfo.ping(player));

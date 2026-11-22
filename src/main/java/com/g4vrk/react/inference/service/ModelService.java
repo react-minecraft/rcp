@@ -3,9 +3,9 @@ package com.g4vrk.react.inference.service;
 import com.g4vrk.react.api.rcp.environment.RCPEnvironment;
 import com.g4vrk.react.api.rcp.event.RCPPlayerListener;
 import com.g4vrk.react.api.rcp.player.RCPPlayer;
-import com.g4vrk.react.inference.config.InferenceConfigs;
+import com.g4vrk.react.inference.config.InferenceConfigRegistry;
 import com.g4vrk.react.inference.model.AimModel;
-import com.g4vrk.react.inference.model.AimModels;
+import com.g4vrk.react.inference.model.AimModelRegistry;
 import com.g4vrk.react.inference.model.ModelId;
 import com.g4vrk.react.inference.model.RequestDispatcher;
 import com.g4vrk.react.inference.model.flower.FlowerModel;
@@ -27,26 +27,26 @@ public final class ModelService implements RCPPlayerListener {
     private final FlowerModel flowerBaseline;
     private final FlowerModel flowerUltra;
     private final VectorModel vector;
-    private final AimModels models;
+    private final AimModelRegistry models;
 
     public ModelService(
             final @NotNull RCPEnvironment environment,
             final @NotNull InferenceServer server,
-            final @NotNull InferenceConfigs configs
+            final @NotNull InferenceConfigRegistry configs
     ) {
 
         this.dispatcher = new RequestDispatcher(environment, server);
         this.flowerBaseline = new FlowerModel(ModelId.FLOWER_BASELINE, dispatcher, configs.flower().step());
         this.flowerUltra = new FlowerModel(ModelId.FLOWER_ULTRA, dispatcher, configs.flower().step());
         this.vector = new VectorModel(environment, dispatcher, configs.vector().combatTicks());
-        this.models = new AimModels(List.of(flowerBaseline, flowerUltra, vector));
+        this.models = new AimModelRegistry(List.of(flowerBaseline, flowerUltra, vector));
 
         models.packetListeners().forEach(environment.listeners()::register);
         environment.listen(this);
 
     }
 
-    public @NotNull AimModels models() {
+    public @NotNull AimModelRegistry models() {
 
         return models;
 
@@ -58,7 +58,7 @@ public final class ModelService implements RCPPlayerListener {
 
     }
 
-    public void reload(final @NotNull InferenceConfigs configs) {
+    public void reload(final @NotNull InferenceConfigRegistry configs) {
 
         flowerBaseline.step(configs.flower().step());
         flowerUltra.step(configs.flower().step());

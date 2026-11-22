@@ -11,11 +11,11 @@ import org.bukkit.entity.Player;
 import org.bukkit.util.BoundingBox;
 import org.jetbrains.annotations.NotNull;
 
-public final class TargetFeatures {
+public final class TargetFeature {
 
     private static final double[] POSSIBLE_EYE_HEIGHTS = {1.62, 1.27, 0.4};
 
-    private TargetFeatures() {
+    private TargetFeature() {
 
         throw new UnsupportedOperationException("This is a utility class and cannot be instantiated");
 
