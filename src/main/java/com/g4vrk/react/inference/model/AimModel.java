@@ -2,8 +2,6 @@ package com.g4vrk.react.inference.model;
 
 import com.g4vrk.react.api.rcp.player.RCPPlayer;
 import com.g4vrk.react.api.rcp.player.RotationSample;
-import com.github.retrooper.packetevents.event.PacketListenerCommon;
-import java.util.List;
 import java.util.UUID;
 import org.jetbrains.annotations.NotNull;
 
@@ -18,19 +16,17 @@ public interface AimModel {
     @NotNull ModelId id();
 
     /**
-     * Packet listeners the model needs to collect its input.
-     */
-    default @NotNull List<PacketListenerCommon> packetListeners() {
-        return List.of();
-    }
-
-    /**
      * Called on the netty thread after every rotation the plugin recorded for the player.
      *
      * <p>{@code sample} holds one rotation laid out as {@link RotationSample} documents; the plugin
      * reuses it, so copy it to keep the values.</p>
      */
     default void onRotation(final @NotNull RCPPlayer player, final float @NotNull [] sample) {
+
+    }
+
+    default void onAttack(final @NotNull RCPPlayer player, final int targetEntityId) {
+
     }
 
     /**

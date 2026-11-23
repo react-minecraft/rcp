@@ -1,6 +1,5 @@
 package com.g4vrk.react.inference;
 
-import org.bukkit.entity.Player;
 import com.g4vrk.functionalActions.defaults.DefaultActionSet;
 import com.g4vrk.functionalActions.parser.ActionParser;
 import com.g4vrk.functionalActions.parser.impl.SimpleActionParser;
@@ -74,7 +73,7 @@ public final class ReactInferenceRCP extends RCPProvider {
         linkCommand = new LinkCommand(
                 connection::server,
                 connection::link,
-                environment.scheduler().<Player>mapEntity(environment.platform()::adaptPlayer),
+                environment.scheduler(),
                 environment.logger()
         );
         linkCommand.reload(actionParser, configs.actions());

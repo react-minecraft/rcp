@@ -7,9 +7,9 @@ import com.g4vrk.react.inference.config.ActionsConfig;
 import com.g4vrk.react.inference.server.InferenceServer;
 import com.g4vrk.schedula.task.TickSchedule;
 import com.g4vrk.schedula.task.scheduler.TaskScheduler;
+import com.g4vrk.react.api.platform.player.PlatformPlayer;
 import net.kyori.adventure.audience.Audience;
 import com.g4vrk.react.api.platform.sender.PlatformSender;
-import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
 import org.incendo.cloud.key.CloudKey;
 import org.incendo.cloud.parser.standard.StringParser;
@@ -50,7 +50,7 @@ public final class LinkCommand {
 
     private final Supplier<InferenceServer> server;
     private final CredentialHandler onLinked;
-    private final TaskScheduler<Player> scheduler;
+    private final TaskScheduler<PlatformPlayer> scheduler;
     private final Logger logger;
 
     private volatile ActionSet actions;
@@ -58,7 +58,7 @@ public final class LinkCommand {
     public LinkCommand(
             final @NotNull Supplier<InferenceServer> server,
             final @NotNull CredentialHandler onLinked,
-            final @NotNull TaskScheduler<Player> scheduler,
+            final @NotNull TaskScheduler<PlatformPlayer> scheduler,
             final @NotNull Logger logger
     ) {
 
@@ -181,7 +181,7 @@ public final class LinkCommand {
             }
             return replaced;
         });
-        final Player player = sender.unwrap(Player.class);
+        final PlatformPlayer player = sender.asPlayer();
         if (player != null) {
             scheduler.scheduleEntity(player, response, TickSchedule.instant());
         } else {

@@ -1,6 +1,5 @@
 package com.g4vrk.react.inference.model;
 
-import com.github.retrooper.packetevents.event.PacketListenerCommon;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -31,12 +30,6 @@ public final class AimModelRegistry {
     public <T extends AimModel> @NotNull Optional<T> find(final @NotNull Class<T> type) {
 
         return models.stream().filter(type::isInstance).map(type::cast).findFirst();
-
-    }
-
-    public @NotNull List<PacketListenerCommon> packetListeners() {
-
-        return models.stream().flatMap(model -> model.packetListeners().stream()).toList();
 
     }
 

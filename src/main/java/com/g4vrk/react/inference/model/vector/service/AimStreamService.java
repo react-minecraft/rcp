@@ -2,25 +2,19 @@ package com.g4vrk.react.inference.model.vector.service;
 
 import com.g4vrk.react.api.event.rcp.ModelFrameEvent;
 import com.g4vrk.react.api.extension.listener.ListenerRegistry;
+import com.g4vrk.react.api.platform.AimSnapshot;
+import com.g4vrk.react.api.platform.player.PlatformPlayer;
 import com.g4vrk.react.api.rcp.environment.RCPEnvironment;
-import com.g4vrk.react.api.rcp.player.CombatTarget;
 import com.g4vrk.react.api.rcp.player.RCPPlayer;
-import com.g4vrk.react.api.rcp.player.registry.RCPPlayerRegistry;
+import com.g4vrk.react.api.rcp.player.RotationSample;
 import com.g4vrk.react.inference.model.RequestDispatcher;
 import com.g4vrk.react.inference.model.vector.model.AimFrame;
+import com.g4vrk.react.inference.model.vector.model.VectorFeature;
 import com.g4vrk.react.inference.model.vector.session.AimSession;
 import com.g4vrk.react.inference.model.vector.session.AimState;
-import com.g4vrk.react.inference.model.vector.thread.EntityRegion;
-import com.github.retrooper.packetevents.event.PacketReceiveEvent;
-import com.github.retrooper.packetevents.protocol.packettype.PacketType;
-import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientInteractEntity;
-import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientPlayerFlying;
 import com.g4vrk.schedula.task.TickSchedule;
 import com.g4vrk.schedula.task.scheduler.TaskScheduler;
-import org.bukkit.entity.Entity;
-import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 import java.util.Map;
@@ -31,19 +25,17 @@ import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 
 /**
- * Turns attack and rotation packets into Vector Preview aim frames.
- *
- * <p>Frames are captured on the player's entity thread; a player counts as fighting for
- * {@code combat-ticks} after each attack.</p>
+ * Turns React's platform-neutral attack and rotation callbacks into Vector aim frames.
  */
 public final class AimStreamService {
 
     private static final List<String> DATASET_COLUMNS = List.of(AimFrame.csvHeader().substring("is_cheating,".length()).split(","));
     private static final TickSchedule CAPTURE_SCHEDULE = TickSchedule.instant();
+
+    private final RCPEnvironment environment;
     private final RequestDispatcher dispatcher;
     private final ListenerRegistry events;
-    private final RCPPlayerRegistry players;
-    private final TaskScheduler<Player> scheduler;
+    private final TaskScheduler<PlatformPlayer> scheduler;
     private final Map<UUID, AimSession> playerData = new ConcurrentHashMap<>();
     private final CopyOnWriteArrayList<Subscription> subscriptions = new CopyOnWriteArrayList<>();
     private final BiConsumer<RCPPlayer, AimSession> onFrame;
@@ -56,10 +48,10 @@ public final class AimStreamService {
             final @NotNull BiConsumer<RCPPlayer, AimSession> onFrame
     ) {
 
+        this.environment = environment;
         this.dispatcher = dispatcher;
         this.events = environment.listeners();
-        this.players = environment.players();
-        this.scheduler = environment.scheduler().<Player>mapEntity(environment.platform()::adaptPlayer);
+        this.scheduler = environment.scheduler();
         this.combatTicks = Math.max(1L, combatTicks);
         this.onFrame = onFrame;
 
@@ -88,35 +80,49 @@ public final class AimStreamService {
 
     }
 
-    public void onPacketBeforeJoin(
-            final @NotNull UUID uuid,
-            final @Nullable Player bukkitPlayer,
-            final @NotNull PacketReceiveEvent event
-    ) {
+    public void onAttack(final @NotNull RCPPlayer player, final int targetEntityId) {
 
+        final UUID uuid = player.uniqueId();
         final long generation = dispatcher.inputGeneration(uuid);
         synchronized (dispatcher.playerLock(uuid)) {
             if (generation != dispatcher.inputGeneration(uuid)) {
                 return;
             }
-            onPacket(uuid, bukkitPlayer, claimPlayerData(uuid), event);
+            final AimSession data = claimPlayerData(uuid);
+            synchronized (data) {
+                final AimState state = data.activate();
+                if (!data.combatActivity.isActive()) {
+                    data.clearHistory();
+                }
+                state.onAttack(targetEntityId);
+                data.combatActivity.extend(combatTicks);
+            }
         }
 
     }
 
-    public void onPacket(final @NotNull RCPPlayer player, final @NotNull PacketReceiveEvent event) {
+    public void onRotation(final @NotNull RCPPlayer player, final float @NotNull [] sample) {
 
-        final long generation = dispatcher.inputGeneration(player.uniqueId());
-        synchronized (dispatcher.playerLock(player.uniqueId())) {
-            if (generation != dispatcher.inputGeneration(player.uniqueId())) {
-                return;
-            }
-            final Player nativePlayer = player.unwrap(Player.class);
-            if (nativePlayer == null) {
-                return;
-            }
-            onPacket(player.uniqueId(), nativePlayer, claimPlayerData(player.uniqueId()), event);
+        if (!player.inCombat()) {
+            return;
         }
+        final UUID uuid = player.uniqueId();
+        final long generation = dispatcher.inputGeneration(uuid);
+        final AimSession data;
+        final AimState state;
+        synchronized (dispatcher.playerLock(uuid)) {
+            if (generation != dispatcher.inputGeneration(uuid)) {
+                return;
+            }
+            data = claimPlayerData(uuid);
+            synchronized (data) {
+                state = data.activate();
+                data.combatActivity.extend(combatTicks);
+            }
+        }
+        final float yaw = RotationSample.yaw(sample, 0);
+        final float pitch = RotationSample.pitch(sample, 0);
+        scheduler.scheduleEntity(player.platform(), () -> capture(player, data, state, yaw, pitch), CAPTURE_SCHEDULE);
 
     }
 
@@ -131,162 +137,43 @@ public final class AimStreamService {
 
     }
 
-    private void onPacket(
-            final @NotNull UUID uuid,
-            final @Nullable Player bukkitPlayer,
-            final @NotNull AimSession data,
-            final @NotNull PacketReceiveEvent event
-    ) {
-
-        synchronized (data) {
-            processPacket(uuid, bukkitPlayer, data, event);
-        }
-
-    }
-
-    private void processPacket(
-            final @NotNull UUID uuid,
-            final @Nullable Player bukkitPlayer,
-            final @NotNull AimSession data,
-            final @NotNull PacketReceiveEvent event
-    ) {
-
-        final AimState state = data.activate();
-        if (event.getPacketType() == PacketType.Play.Client.INTERACT_ENTITY) {
-            onInteract(data, state, event);
-            return;
-        }
-        if (!WrapperPlayClientPlayerFlying.isFlying(event.getPacketType())) {
-            return;
-        }
-        final WrapperPlayClientPlayerFlying flying = new WrapperPlayClientPlayerFlying(event);
-        final boolean rotationChanged = flying.hasRotationChanged();
-        state.onFlying(rotationChanged);
-        if (!rotationChanged || bukkitPlayer == null) {
-            return;
-        }
-        final float yaw = flying.getLocation().getYaw();
-        final float pitch = flying.getLocation().getPitch();
-        scheduler.scheduleEntity(bukkitPlayer, () -> capture(uuid, bukkitPlayer, data, state, yaw, pitch), CAPTURE_SCHEDULE);
-
-    }
-
-    private void onInteract(
-            final @NotNull AimSession data,
-            final @NotNull AimState state,
-            final @NotNull PacketReceiveEvent event
-    ) {
-
-        final WrapperPlayClientInteractEntity interact = new WrapperPlayClientInteractEntity(event);
-        if (interact.getAction() != WrapperPlayClientInteractEntity.InteractAction.ATTACK) {
-            return;
-        }
-        final RCPPlayer target = players.byEntityId(interact.getEntityId());
-        if (target != null) {
-            state.onAttack(target.uniqueId());
-        } else {
-            state.onAttackEntity(interact.getEntityId());
-        }
-        if (!data.combatActivity.isActive()) {
-            data.clearHistory();
-        }
-        data.combatActivity.extend(combatTicks);
-
-    }
-
     private void capture(
-            final @NotNull UUID uuid,
-            final @NotNull Player bukkitPlayer,
+            final @NotNull RCPPlayer player,
             final @NotNull AimSession data,
             final @NotNull AimState state,
             final float yaw,
             final float pitch
     ) {
 
-        final RCPPlayer player;
+        final UUID uuid = player.uniqueId();
+        final long generation = dispatcher.inputGeneration(uuid);
         final AimFrame frame;
-        final boolean inCombat;
         synchronized (dispatcher.playerLock(uuid)) {
             synchronized (data) {
-                player = players.get(uuid);
-                if (!bukkitPlayer.isOnline() || playerData.get(uuid) != data || !data.isCurrent(state)) {
+                if (generation != dispatcher.inputGeneration(uuid)
+                        || !player.platform().online()
+                        || playerData.get(uuid) != data
+                        || !data.isCurrent(state)) {
                     return;
                 }
-                resolvePendingTarget(bukkitPlayer, player, state);
-                frame = state.capture(bukkitPlayer, resolveTarget(data, state), yaw, pitch);
-                if (player == null) {
+                final AimSnapshot snapshot = environment.platform().aimSnapshot(player.platform(), state.targetEntityId());
+                frame = state.capture(snapshot, yaw, pitch);
+                if (!data.combatActivity.isActive()) {
+                    data.clearHistory();
                     return;
                 }
-                inCombat = data.combatActivity.isActive();
-                recordFrame(player, data, frame);
+                data.push(frame);
+                onFrame.accept(player, data);
             }
         }
-        if (data.isCurrent(state)) {
-            events.post(new ModelFrameEvent(
-                    "vector",
-                    player.uniqueId(),
-                    DATASET_COLUMNS,
-                    frame.datasetFeatures(),
-                    inCombat
-            ));
-            notifySubscribers(player, frame);
-        }
-
-    }
-
-    private void resolvePendingTarget(
-            final @NotNull Player bukkitPlayer,
-            final @Nullable RCPPlayer player,
-            final @NotNull AimState state
-    ) {
-
-        final int pendingTarget = state.takePendingTargetEntityId();
-        if (pendingTarget == -1) {
-            return;
-        }
-        final Entity attacked = findNearbyMannequin(bukkitPlayer, pendingTarget);
-        state.mannequin(attacked);
-        if (player != null && attacked != null) {
-            player.enterCombat();
-        }
-
-    }
-
-    private static @Nullable Entity findNearbyMannequin(final @NotNull Player bukkitPlayer, final int entityId) {
-
-        for (final Entity entity : EntityRegion.nearby(bukkitPlayer)) {
-            if (EntityRegion.owns(entity) && entity.getEntityId() == entityId && CombatTarget.isMannequinType(entity.getType().getKey().toString())) {
-                return entity;
-            }
-        }
-        return null;
-
-    }
-
-    private @Nullable Entity resolveTarget(final @NotNull AimSession data, final @NotNull AimState state) {
-
-        if (!data.combatActivity.isActive()) {
-            return null;
-        }
-        final UUID targetId = state.targetId();
-        final RCPPlayer targetPlayer = targetId == null ? null : players.get(targetId);
-        final Entity target = targetPlayer == null ? state.mannequin() : targetPlayer.unwrap(Player.class);
-        return target != null && EntityRegion.owns(target) ? target : null;
-
-    }
-
-    private void recordFrame(
-            final @NotNull RCPPlayer player,
-            final @NotNull AimSession data,
-            final @NotNull AimFrame frame
-    ) {
-
-        if (!data.combatActivity.isActive()) {
-            data.clearHistory();
-            return;
-        }
-        data.push(frame);
-        onFrame.accept(player, data);
+        events.post(new ModelFrameEvent(
+                "vector",
+                player.uniqueId(),
+                DATASET_COLUMNS,
+                frame.datasetFeatures(),
+                player.inCombat()
+        ));
+        notifySubscribers(player, frame);
 
     }
 
@@ -300,9 +187,6 @@ public final class AimStreamService {
 
     }
 
-    /**
-     * A frame consumer and the players it records.
-     */
     private record Subscription(
             @NotNull Predicate<RCPPlayer> interested,
             @NotNull BiConsumer<RCPPlayer, AimFrame> consumer

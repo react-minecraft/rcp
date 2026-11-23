@@ -1,19 +1,13 @@
 package com.g4vrk.react.inference.model.vector.feature;
 
+import com.g4vrk.react.api.platform.AimSnapshot;
 import com.g4vrk.react.inference.model.vector.model.VectorFeature;
-import com.g4vrk.react.inference.model.vector.thread.EntityRegion;
-import com.github.retrooper.packetevents.protocol.player.ClientVersion;
-import org.bukkit.GameMode;
-import org.bukkit.Location;
-import org.bukkit.entity.Entity;
-import org.bukkit.entity.LivingEntity;
-import org.bukkit.entity.Player;
-import org.bukkit.util.BoundingBox;
 import org.jetbrains.annotations.NotNull;
 
+/**
+ * Writes platform-neutral target geometry into a Vector feature row.
+ */
 public final class TargetFeature {
-
-    private static final double[] POSSIBLE_EYE_HEIGHTS = {1.62, 1.27, 0.4};
 
     private TargetFeature() {
 
@@ -23,46 +17,50 @@ public final class TargetFeature {
 
     public static void writeTo(
             final @NotNull float[] features,
-            final @NotNull Player player,
-            final @NotNull Entity target,
+            final @NotNull AimSnapshot snapshot,
             final float fromYaw,
             final float fromPitch,
             final float yaw,
             final float pitch
     ) {
 
-        final Location feet = player.getLocation();
-        final double px = feet.getX();
-        final double py = feet.getY();
-        final double pz = feet.getZ();
-        final double[] directions = lookDirections(player, fromYaw, fromPitch, yaw, pitch);
-        VectorFeature.TARGET_AIM_ANGLE.put(features, (float) minAngleToBox(px, py, pz, directions, target.getBoundingBox()));
-        final Location position = target.getLocation();
-        VectorFeature.TARGET_REL_X.put(features, (float) (position.getX() - px));
-        VectorFeature.TARGET_REL_Y.put(features, (float) (position.getY() - py));
-        VectorFeature.TARGET_REL_Z.put(features, (float) (position.getZ() - pz));
-        VectorFeature.TARGETS_IN_RANGE_COUNT.put(features, countTargetsInRange(player, px, py, pz));
+        final double px = snapshot.playerX();
+        final double py = snapshot.playerY();
+        final double pz = snapshot.playerZ();
+        final double centerX = (snapshot.targetMinX() + snapshot.targetMaxX()) * 0.5;
+        final double centerY = (snapshot.targetMinY() + snapshot.targetMaxY()) * 0.5;
+        final double centerZ = (snapshot.targetMinZ() + snapshot.targetMaxZ()) * 0.5;
+        VectorFeature.TARGET_AIM_ANGLE.put(features, (float) minAngleToBox(snapshot, lookDirections(
+                snapshot.clientProtocol(),
+                fromYaw,
+                fromPitch,
+                yaw,
+                pitch
+        )));
+        VectorFeature.TARGET_REL_X.put(features, (float) (centerX - px));
+        VectorFeature.TARGET_REL_Y.put(features, (float) (centerY - py));
+        VectorFeature.TARGET_REL_Z.put(features, (float) (centerZ - pz));
+        VectorFeature.TARGETS_IN_RANGE_COUNT.put(features, snapshot.targetsInRange());
 
     }
 
     private static double[] lookDirections(
-            final Player player,
+            final int clientProtocol,
             final float lastYaw,
             final float lastPitch,
             final float yaw,
             final float pitch
     ) {
 
-        final ClientVersion version = PlayerClientInfo.version(player);
-        if (version != null && version.isOlderThan(ClientVersion.V_1_8)) {
+        if (clientProtocol >= 0 && clientProtocol < 47) {
             return writeLookVector(yaw, pitch, new double[3], 0);
         }
-        final boolean includeLastRotation = version == null || version.isNewerThanOrEquals(ClientVersion.V_1_9);
+        final boolean includeLastRotation = clientProtocol < 0 || clientProtocol >= 107;
         final double[] directions = new double[3 * (includeLastRotation ? 3 : 2)];
         writeLookVector(yaw, pitch, directions, 0);
         writeLookVector(lastYaw, pitch, directions, 3);
         if (includeLastRotation) {
-            writeLookVector(lastYaw, lastPitch, directions, 3 * 2);
+            writeLookVector(lastYaw, lastPitch, directions, 6);
         }
         return directions;
 
@@ -85,32 +83,24 @@ public final class TargetFeature {
 
     }
 
-    private static double minAngleToBox(
-            final double px,
-            final double py,
-            final double pz,
-            final double[] directions,
-            final BoundingBox box
-    ) {
+    private static double minAngleToBox(final AimSnapshot snapshot, final double[] directions) {
 
         double maxDot = Double.NEGATIVE_INFINITY;
-        for (final double eyeHeight : POSSIBLE_EYE_HEIGHTS) {
-            final double eyeY = py + eyeHeight;
-            for (int point = 0; point < 9; point++) {
-                final double dx = pointX(box, point) - px;
-                final double dy = pointY(box, point) - eyeY;
-                final double dz = pointZ(box, point) - pz;
-                final double length = Math.sqrt(dx * dx + dy * dy + dz * dz);
-                if (length < 0.001) {
-                    return 0.0;
-                }
-                for (int offset = 0; offset < directions.length; offset += 3) {
-                    final double dot = directions[offset] * (dx / length)
-                            + directions[offset + 1] * (dy / length)
-                            + directions[offset + 2] * (dz / length);
-                    if (dot > maxDot) {
-                        maxDot = dot;
-                    }
+        final double eyeY = snapshot.playerY() + snapshot.eyeHeight();
+        for (int point = 0; point < 9; point++) {
+            final double dx = pointX(snapshot, point) - snapshot.playerX();
+            final double dy = pointY(snapshot, point) - eyeY;
+            final double dz = pointZ(snapshot, point) - snapshot.playerZ();
+            final double length = Math.sqrt(dx * dx + dy * dy + dz * dz);
+            if (length < 0.001) {
+                return 0.0;
+            }
+            for (int offset = 0; offset < directions.length; offset += 3) {
+                final double dot = directions[offset] * (dx / length)
+                        + directions[offset + 1] * (dy / length)
+                        + directions[offset + 2] * (dz / length);
+                if (dot > maxDot) {
+                    maxDot = dot;
                 }
             }
         }
@@ -118,52 +108,30 @@ public final class TargetFeature {
 
     }
 
-    private static double pointX(final BoundingBox box, final int point) {
+    private static double pointX(final AimSnapshot snapshot, final int point) {
 
         if (point == 0) {
-            return box.getCenterX();
+            return (snapshot.targetMinX() + snapshot.targetMaxX()) * 0.5;
         }
-        return ((point - 1) & 1) == 0 ? box.getMinX() : box.getMaxX();
+        return ((point - 1) & 1) == 0 ? snapshot.targetMinX() : snapshot.targetMaxX();
 
     }
 
-    private static double pointY(final BoundingBox box, final int point) {
+    private static double pointY(final AimSnapshot snapshot, final int point) {
 
         if (point == 0) {
-            return box.getCenterY();
+            return (snapshot.targetMinY() + snapshot.targetMaxY()) * 0.5;
         }
-        return ((point - 1) & 2) == 0 ? box.getMinY() : box.getMaxY();
+        return ((point - 1) & 2) == 0 ? snapshot.targetMinY() : snapshot.targetMaxY();
 
     }
 
-    private static double pointZ(final BoundingBox box, final int point) {
+    private static double pointZ(final AimSnapshot snapshot, final int point) {
 
         if (point == 0) {
-            return box.getCenterZ();
+            return (snapshot.targetMinZ() + snapshot.targetMaxZ()) * 0.5;
         }
-        return ((point - 1) & 4) == 0 ? box.getMinZ() : box.getMaxZ();
-
-    }
-
-    private static int countTargetsInRange(final Player player, final double px, final double py, final double pz) {
-
-        int count = 0;
-        for (final Entity entity : EntityRegion.nearby(player)) {
-            if (!(entity instanceof LivingEntity) || !EntityRegion.owns(entity) || entity.isDead()) {
-                continue;
-            }
-            if (entity instanceof Player other && other.getGameMode() == GameMode.SPECTATOR) {
-                continue;
-            }
-            final Location position = entity.getLocation();
-            final double dx = position.getX() - px;
-            final double dy = position.getY() - py;
-            final double dz = position.getZ() - pz;
-            if (dx * dx + dy * dy + dz * dz <= 36.0) {
-                count++;
-            }
-        }
-        return count;
+        return ((point - 1) & 4) == 0 ? snapshot.targetMinZ() : snapshot.targetMaxZ();
 
     }
 

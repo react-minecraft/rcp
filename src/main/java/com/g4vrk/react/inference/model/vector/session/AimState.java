@@ -1,15 +1,12 @@
 package com.g4vrk.react.inference.model.vector.session;
 
+import com.g4vrk.react.api.platform.AimSnapshot;
 import com.g4vrk.react.inference.model.vector.feature.AimModeTracker;
 import com.g4vrk.react.inference.model.vector.feature.HeldItemClassifier;
-import com.g4vrk.react.inference.model.vector.feature.PlayerClientInfo;
 import com.g4vrk.react.inference.model.vector.feature.TargetFeature;
 import com.g4vrk.react.inference.model.vector.model.AimFrame;
 import com.g4vrk.react.inference.model.vector.model.VectorFeature;
 import com.g4vrk.react.inference.model.vector.util.MouseMath;
-import java.util.UUID;
-import org.bukkit.entity.Entity;
-import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -26,73 +23,20 @@ public final class AimState {
     private float lastDeltaPitch;
     private float lastAccelYaw;
     private float lastAccelPitch;
-    private boolean rotationOnPreviousFlying = true;
-    private boolean idleFlyingSinceLastFrame;
-    private @Nullable UUID targetId;
-    private @Nullable Entity mannequin;
-    private int pendingTargetEntityId = -1;
+    private int targetEntityId = -1;
 
-    public void onAttackEntity(final int entityId) {
+    public void onAttack(final int targetEntityId) {
 
         synchronized (lock) {
-            targetId = null;
-            mannequin = null;
-            pendingTargetEntityId = entityId;
+            this.targetEntityId = targetEntityId;
         }
 
     }
 
-    public void onAttack(final @Nullable UUID targetUuid) {
+    public int targetEntityId() {
 
         synchronized (lock) {
-            targetId = targetUuid;
-            mannequin = null;
-            pendingTargetEntityId = -1;
-        }
-
-    }
-
-    public int takePendingTargetEntityId() {
-
-        synchronized (lock) {
-            final int entityId = pendingTargetEntityId;
-            pendingTargetEntityId = -1;
-            return entityId;
-        }
-
-    }
-
-    public @Nullable UUID targetId() {
-
-        synchronized (lock) {
-            return targetId;
-        }
-
-    }
-
-    public void mannequin(final @Nullable Entity target) {
-
-        synchronized (lock) {
-            mannequin = target;
-        }
-
-    }
-
-    public @Nullable Entity mannequin() {
-
-        synchronized (lock) {
-            return mannequin;
-        }
-
-    }
-
-    public void onFlying(final boolean hasRotation) {
-
-        if (hasRotation) {
-            return;
-        }
-        synchronized (lock) {
-            idleFlyingSinceLastFrame = true;
+            return targetEntityId;
         }
 
     }
@@ -101,16 +45,13 @@ public final class AimState {
 
         synchronized (lock) {
             aimModes.reset();
-            targetId = null;
-            mannequin = null;
-            pendingTargetEntityId = -1;
+            targetEntityId = -1;
         }
 
     }
 
     public @NotNull AimFrame capture(
-            final @NotNull Player player,
-            final @Nullable Entity target,
+            final @Nullable AimSnapshot snapshot,
             final float rawYaw,
             final float rawPitch
     ) {
@@ -126,7 +67,7 @@ public final class AimState {
             final float jerkPitch = MouseMath.calculateJerk(accelPitch, lastAccelPitch);
             final float gcdErrorYaw = MouseMath.calculateGCDError(deltaYaw, lastDeltaYaw);
             final float gcdErrorPitch = MouseMath.calculateGCDError(deltaPitch, lastDeltaPitch);
-            final float[] vector = captureFeatures(player, target, yaw, pitch, deltaYaw, deltaPitch);
+            final float[] features = captureFeatures(snapshot, yaw, pitch, deltaYaw, deltaPitch);
             lastYaw = yaw;
             lastPitch = pitch;
             lastDeltaYaw = deltaYaw;
@@ -134,15 +75,22 @@ public final class AimState {
             lastAccelYaw = accelYaw;
             lastAccelPitch = accelPitch;
             return new AimFrame(
-                    deltaYaw, deltaPitch, accelYaw, accelPitch, jerkYaw, jerkPitch, gcdErrorYaw, gcdErrorPitch, vector
+                    deltaYaw,
+                    deltaPitch,
+                    accelYaw,
+                    accelPitch,
+                    jerkYaw,
+                    jerkPitch,
+                    gcdErrorYaw,
+                    gcdErrorPitch,
+                    features
             );
         }
 
     }
 
     private float[] captureFeatures(
-            final Player player,
-            final Entity target,
+            final @Nullable AimSnapshot snapshot,
             final float yaw,
             final float pitch,
             final float deltaYaw,
@@ -150,20 +98,23 @@ public final class AimState {
     ) {
 
         final float[] features = new float[VectorFeature.COUNT];
-        VectorFeature.ROTATION_PRESENT.put(features, rotationOnPreviousFlying && !idleFlyingSinceLastFrame);
-        rotationOnPreviousFlying = !idleFlyingSinceLastFrame;
-        idleFlyingSinceLastFrame = false;
+        VectorFeature.ROTATION_PRESENT.put(features, true);
         VectorFeature.PITCH.put(features, pitch);
         aimModes.update(lastYaw, yaw, deltaYaw, deltaPitch);
         aimModes.writeTo(features);
-        final boolean targetValid = target != null && target.isValid() && !target.isDead()
-                && target.getWorld().equals(player.getWorld());
+        final boolean targetValid = snapshot != null && snapshot.targetValid();
         VectorFeature.TARGET_VALID.put(features, targetValid);
         if (targetValid) {
-            TargetFeature.writeTo(features, player, target, lastYaw, lastPitch, yaw, pitch);
+            TargetFeature.writeTo(features, snapshot, lastYaw, lastPitch, yaw, pitch);
         }
-        VectorFeature.HELD_ITEM_CLASS.put(features, HeldItemClassifier.classify(player.getInventory().getItemInMainHand()));
-        VectorFeature.PLAYER_PING.put(features, PlayerClientInfo.ping(player));
+        if (snapshot != null) {
+            VectorFeature.HELD_ITEM_CLASS.put(features, HeldItemClassifier.classify(
+                    snapshot.mainHandItemId(),
+                    snapshot.mainHandItemEdible(),
+                    snapshot.mainHandItemBlock()
+            ));
+            VectorFeature.PLAYER_PING.put(features, snapshot.ping());
+        }
         return features;
 
     }

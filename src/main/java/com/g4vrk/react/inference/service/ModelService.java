@@ -41,7 +41,6 @@ public final class ModelService implements RCPPlayerListener {
         this.vector = new VectorModel(environment, dispatcher, configs.vector().combatTicks());
         this.models = new AimModelRegistry(List.of(flowerBaseline, flowerUltra, vector));
 
-        models.packetListeners().forEach(environment.listeners()::register);
         environment.listen(this);
 
     }
@@ -76,6 +75,21 @@ public final class ModelService implements RCPPlayerListener {
             }
             for (final AimModel model : models.all()) {
                 model.onRotation(player, sample);
+            }
+        }
+
+    }
+
+    @Override
+    public void onAttack(final @NotNull RCPPlayer player, final int targetEntityId) {
+
+        final long generation = dispatcher.inputGeneration(player.uniqueId());
+        synchronized (dispatcher.playerLock(player.uniqueId())) {
+            if (generation != dispatcher.inputGeneration(player.uniqueId())) {
+                return;
+            }
+            for (final AimModel model : models.all()) {
+                model.onAttack(player, targetEntityId);
             }
         }
 

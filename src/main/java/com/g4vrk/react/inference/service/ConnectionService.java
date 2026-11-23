@@ -1,13 +1,10 @@
 package com.g4vrk.react.inference.service;
 
-import org.bukkit.Bukkit;
-import org.bukkit.entity.Player;
 import com.g4vrk.react.api.rcp.environment.RCPEnvironment;
 import com.g4vrk.react.inference.config.ActionsConfig;
 import com.g4vrk.react.inference.config.InferenceConfigRegistry;
 import com.g4vrk.react.inference.link.Credential;
 import com.g4vrk.react.inference.link.LinkStore;
-import com.g4vrk.react.inference.link.ServerFingerprint;
 import com.g4vrk.react.inference.server.InferenceServer;
 import com.g4vrk.schedula.task.TickSchedule;
 import java.io.IOException;
@@ -43,7 +40,7 @@ public final class ConnectionService {
             throws IOException {
         this.environment = environment;
         this.logger = environment.logger();
-        this.fingerprint = ServerFingerprint.of(Bukkit.getServer());
+        this.fingerprint = environment.platform().serverFingerprint();
         this.linkStore = new LinkStore(environment.directory().resolve(".link"), fingerprint);
         migrateLegacyToken();
         this.texts = configs.actions().texts();
@@ -126,7 +123,7 @@ public final class ConnectionService {
 
     private void status(final long revision, final String status) {
 
-        environment.scheduler().<Player>mapEntity(environment.platform()::adaptPlayer).schedule(() -> {
+        environment.scheduler().schedule(() -> {
             synchronized (this) {
                 if (!closed && statusRevision == revision) {
                     environment.status(status);

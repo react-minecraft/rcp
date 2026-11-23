@@ -7,26 +7,22 @@ import com.g4vrk.react.inference.model.AimModel;
 import com.g4vrk.react.inference.model.ModelAnswer;
 import com.g4vrk.react.inference.model.ModelId;
 import com.g4vrk.react.inference.model.RequestDispatcher;
-import com.g4vrk.react.inference.model.vector.listener.VectorListener;
 import com.g4vrk.react.inference.model.vector.model.AimFrame;
 import com.g4vrk.react.inference.model.vector.protocol.FrameCodec;
 import com.g4vrk.react.inference.model.vector.service.AimStreamService;
 import com.g4vrk.react.inference.model.vector.session.AimSession;
-import com.github.retrooper.packetevents.event.PacketListenerCommon;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Vector Preview: aim frames collected from packets during combat, sent as FlatBuffers
+ * Vector Preview: aim frames collected from platform callbacks during combat, sent as FlatBuffers
  * ({@code protocol/vector}).
  */
 public final class VectorModel implements AimModel {
 
     private static final ModelId ID = ModelId.VECTOR_PREVIEW;
 
-    private final RCPEnvironment environment;
     private final RequestDispatcher dispatcher;
     private final AimStreamService stream;
 
@@ -39,7 +35,6 @@ public final class VectorModel implements AimModel {
             final long combatTicks
     ) {
 
-        this.environment = environment;
         this.dispatcher = dispatcher;
         this.stream = new AimStreamService(environment, dispatcher, combatTicks, this::onFrame);
 
@@ -68,9 +63,16 @@ public final class VectorModel implements AimModel {
     }
 
     @Override
-    public @NotNull List<PacketListenerCommon> packetListeners() {
+    public void onAttack(final @NotNull RCPPlayer player, final int targetEntityId) {
 
-        return List.of(new VectorListener(environment, stream));
+        stream.onAttack(player, targetEntityId);
+
+    }
+
+    @Override
+    public void onRotation(final @NotNull RCPPlayer player, final float @NotNull [] sample) {
+
+        stream.onRotation(player, sample);
 
     }
 

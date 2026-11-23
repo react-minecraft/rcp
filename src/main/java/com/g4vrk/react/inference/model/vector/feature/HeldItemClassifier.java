@@ -1,9 +1,12 @@
 package com.g4vrk.react.inference.model.vector.feature;
 
-import org.bukkit.Material;
-import org.bukkit.inventory.ItemStack;
-import org.jetbrains.annotations.Nullable;
+import org.jetbrains.annotations.NotNull;
 
+import java.util.Locale;
+
+/**
+ * Maps platform-neutral item properties to the Vector model's item classes.
+ */
 public final class HeldItemClassifier {
 
     private HeldItemClassifier() {
@@ -12,46 +15,40 @@ public final class HeldItemClassifier {
 
     }
 
-    public static int classify(final @Nullable ItemStack item) {
+    public static int classify(
+            final @NotNull String itemId,
+            final boolean edible,
+            final boolean block
+    ) {
 
-        if (item == null || item.getType().isAir()) {
+        final int separator = itemId.indexOf(':');
+        final String name = itemId.substring(separator + 1).toUpperCase(Locale.ROOT);
+        if (name.equals("AIR")) {
             return 1;
         }
-        final Material type = item.getType();
-        final String name = type.name();
-        switch (name) {
-            case "END_CRYSTAL":
-                return 3;
-            case "RESPAWN_ANCHOR":
-                return 5;
-            case "GLOWSTONE":
-                return 6;
-            case "TOTEM_OF_UNDYING":
-                return 7;
-            case "SHIELD":
-                return 12;
-            case "OBSIDIAN":
-            case "CRYING_OBSIDIAN":
-            case "BEDROCK":
-                return 4;
-            case "BOW":
-            case "CROSSBOW":
-            case "TRIDENT":
-                return 9;
-            case "ENDER_PEARL":
-            case "SNOWBALL":
-            case "EGG":
-                return 10;
-            default:
-                break;
-        }
+        return switch (name) {
+            case "END_CRYSTAL" -> 3;
+            case "RESPAWN_ANCHOR" -> 5;
+            case "GLOWSTONE" -> 6;
+            case "TOTEM_OF_UNDYING" -> 7;
+            case "SHIELD" -> 12;
+            case "OBSIDIAN", "CRYING_OBSIDIAN", "BEDROCK" -> 4;
+            case "BOW", "CROSSBOW", "TRIDENT" -> 9;
+            case "ENDER_PEARL", "SNOWBALL", "EGG" -> 10;
+            default -> classifyOther(name, edible, block);
+        };
+
+    }
+
+    private static int classifyOther(final String name, final boolean edible, final boolean block) {
+
         if (name.endsWith("_SWORD") || name.endsWith("_AXE")) {
             return 2;
         }
-        if (type.isEdible()) {
+        if (edible) {
             return 11;
         }
-        return type.isBlock() ? 8 : 0;
+        return block ? 8 : 0;
 
     }
 
