@@ -9,7 +9,6 @@ import java.security.PublicKey;
 import java.security.Signature;
 import java.util.Arrays;
 import java.util.Base64;
-import java.util.HexFormat;
 import java.util.Locale;
 import org.jetbrains.annotations.NotNull;
 
@@ -60,7 +59,7 @@ public final class RequestSigner {
             final byte @NotNull [] body
     ) {
 
-        final String digest = HexFormat.of().formatHex(ServerFingerprint.sha256(body));
+        final String digest = HexCodec.encode(ServerFingerprint.sha256(body));
         return method.toUpperCase(Locale.ROOT) + "\n" + path + "\n" + fingerprint + "\n" + timestampSeconds + "\n" + digest;
 
     }

@@ -1,4 +1,5 @@
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+import org.gradle.api.attributes.java.TargetJvmVersion
 import util.VersionUtility
 
 plugins {
@@ -9,6 +10,12 @@ plugins {
 }
 
 version = VersionUtility.version(project, version.toString())
+
+configurations.configureEach {
+    if (name == "compileClasspath" || name.endsWith("CompileClasspath")) {
+        attributes.attribute(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, 17)
+    }
+}
 
 repositories {
 
@@ -58,8 +65,8 @@ dependencies {
 }
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_17
-    targetCompatibility = JavaVersion.VERSION_17
+    sourceCompatibility = JavaVersion.VERSION_16
+    targetCompatibility = JavaVersion.VERSION_16
 }
 
 val inferenceApiJar = tasks.register<Jar>("inferenceApiJar") {
@@ -85,6 +92,7 @@ tasks {
 
     withType<JavaCompile>().configureEach {
         options.encoding = "UTF-8"
+        options.release.set(16)
     }
 
     withType<Test>().configureEach {

@@ -7,7 +7,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.HexFormat;
 import java.util.List;
 import org.bukkit.Server;
 import org.bukkit.World;
@@ -39,7 +38,7 @@ public final class ServerFingerprint {
 
     static @NotNull String hash(final @NotNull String value) {
 
-        return HexFormat.of().formatHex(sha256(value));
+        return HexCodec.encode(sha256(value));
 
     }
 
