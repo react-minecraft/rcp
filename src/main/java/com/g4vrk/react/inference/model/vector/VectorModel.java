@@ -106,7 +106,12 @@ public final class VectorModel implements AimModel {
     public @NotNull ModelAnswer readResponse(final byte @NotNull [] body) {
 
         final FrameCodec.Prediction prediction = FrameCodec.decodePrediction(body);
-        return new ModelAnswer(prediction.probability(), prediction.threshold(), prediction.enforcementEnabled());
+        return new ModelAnswer(
+                prediction.probability(),
+                prediction.threshold(),
+                prediction.enforcementEnabled(),
+                prediction.runId()
+        );
 
     }
 

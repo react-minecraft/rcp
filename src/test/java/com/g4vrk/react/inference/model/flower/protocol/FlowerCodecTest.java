@@ -1,15 +1,22 @@
 package com.g4vrk.react.inference.model.flower.protocol;
 
+import com.g4vrk.react.inference.model.ModelAnswer;
 import com.g4vrk.react.inference.model.flower.protocol.schema.FlowerRequest;
 import com.g4vrk.react.inference.model.flower.protocol.schema.FlowerResponse;
 import com.google.flatbuffers.FlatBufferBuilder;
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class FlowerCodecTest {
 
@@ -34,16 +41,53 @@ class FlowerCodecTest {
     }
 
     @Test
-    void readsProbabilityAndRejectsOtherBuffers() {
+    void readsVersionedPredictionAndRejectsOtherBuffers() {
+
+        final FlatBufferBuilder builder = new FlatBufferBuilder();
+        final int runId = builder.createString("flower-run-42");
+        FlowerResponse.finishFlowerResponseBuffer(builder, FlowerResponse.createFlowerResponse(
+                builder, 2, .75, .8, 0, false, runId));
+        final ModelAnswer answer = FlowerCodec.decodeAnswer(builder.sizedByteArray());
+        assertEquals(.75, answer.probability());
+        assertEquals(.8, answer.threshold());
+        assertFalse(answer.enforcement());
+        assertEquals("flower-run-42", answer.runId());
+
+        assertThrows(IllegalArgumentException.class, () -> FlowerCodec.decodeAnswer("{\"p\":1}".getBytes()));
+        final FlatBufferBuilder invalid = new FlatBufferBuilder();
+        FlowerResponse.finishFlowerResponseBuffer(invalid, FlowerResponse.createFlowerResponse(invalid, 1.5));
+        assertThrows(IllegalArgumentException.class, () -> FlowerCodec.decodeAnswer(invalid.sizedByteArray()));
+
+    }
+
+    @Test
+    void acceptsLegacyProbabilityOnlyResponse() {
 
         final FlatBufferBuilder builder = new FlatBufferBuilder();
         FlowerResponse.finishFlowerResponseBuffer(builder, FlowerResponse.createFlowerResponse(builder, .75));
-        assertEquals(.75, FlowerCodec.decodeProbability(builder.sizedByteArray()));
+        final ModelAnswer answer = FlowerCodec.decodeAnswer(builder.sizedByteArray());
+        assertEquals(.75, answer.probability());
+        assertTrue(answer.enforcement());
+        assertTrue(Double.isNaN(answer.threshold()));
+        assertNull(answer.runId());
 
-        assertThrows(IllegalArgumentException.class, () -> FlowerCodec.decodeProbability("{\"p\":1}".getBytes()));
-        final FlatBufferBuilder invalid = new FlatBufferBuilder();
-        FlowerResponse.finishFlowerResponseBuffer(invalid, FlowerResponse.createFlowerResponse(invalid, 1.5));
-        assertThrows(IllegalArgumentException.class, () -> FlowerCodec.decodeProbability(invalid.sizedByteArray()));
+    }
+
+    @Test
+    void decodesBackendSharedFixture() throws IOException {
+
+        final byte[] encoded;
+        try (final InputStream input = FlowerCodecTest.class.getResourceAsStream("/protocol/flower-response-v2.b64")) {
+            if (input == null) {
+                throw new IllegalStateException("FLOWER fixture is missing");
+            }
+            encoded = Base64.getDecoder().decode(new String(input.readAllBytes(), StandardCharsets.US_ASCII).strip());
+        }
+        final ModelAnswer answer = FlowerCodec.decodeAnswer(encoded);
+        assertEquals(.73456D, answer.probability());
+        assertEquals(.93D, answer.threshold());
+        assertFalse(answer.enforcement());
+        assertEquals("shared-flower-run", answer.runId());
 
     }
 

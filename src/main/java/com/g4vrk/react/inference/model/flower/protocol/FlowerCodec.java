@@ -2,6 +2,7 @@ package com.g4vrk.react.inference.model.flower.protocol;
 
 import com.g4vrk.react.inference.model.flower.protocol.schema.FlowerRequest;
 import com.g4vrk.react.inference.model.flower.protocol.schema.FlowerResponse;
+import com.g4vrk.react.inference.model.ModelAnswer;
 import com.g4vrk.react.api.rcp.player.RotationSample;
 import com.google.flatbuffers.FlatBufferBuilder;
 import java.nio.ByteBuffer;
@@ -57,22 +58,56 @@ public final class FlowerCodec {
 
     }
 
-    public static double decodeProbability(final byte @NotNull [] body) {
+    public static @NotNull ModelAnswer decodeAnswer(final byte @NotNull [] body) {
 
-        final ByteBuffer buffer = ByteBuffer.wrap(body);
-        if (body.length < 8 || !FlowerResponse.FlowerResponseBufferHasIdentifier(buffer)) {
+        if (body.length < 12) {
             throw new IllegalArgumentException("Invalid Flower response; expected GAFR");
         }
-        final double probability;
+        final ByteBuffer buffer = ByteBuffer.wrap(body);
         try {
-            probability = FlowerResponse.getRootAsFlowerResponse(buffer).cheatProbability();
-        } catch (final IndexOutOfBoundsException malformed) {
+            if (!FlowerResponse.FlowerResponseBufferHasIdentifier(buffer)) {
+                throw new IllegalArgumentException("Invalid Flower response; expected GAFR");
+            }
+            final FlowerResponse response = FlowerResponse.getRootAsFlowerResponse(buffer);
+            final double probability = response.cheatProbability();
+            if (!Double.isFinite(probability) || probability < 0.0D || probability > 1.0D) {
+                throw new IllegalArgumentException("Invalid Flower probability");
+            }
+            final long schemaVersion = response.schemaVersion();
+            if (schemaVersion == 0L) {
+                return new ModelAnswer(probability, Double.NaN, true);
+            }
+            final double threshold = response.decisionThreshold();
+            final int mode = response.deploymentMode();
+            final boolean enforcement = response.enforcementEnabled();
+            final ByteBuffer encodedRunId = response.runIdAsByteBuffer();
+            if (schemaVersion != 2L || mode > 1 || enforcement != (mode == 1)
+                    || !Double.isFinite(threshold) || threshold < 0.0D || threshold > 1.0D
+                    || !response.hasEnforcementEnabled()
+                    || (encodedRunId != null && encodedRunId.remaining() > 1024)) {
+                throw new IllegalArgumentException("Invalid Flower response metadata");
+            }
+            final String runId = response.runId();
+            if (runId != null) {
+                if (runId.isBlank()) {
+                    throw new IllegalArgumentException("Invalid Flower run identifier");
+                }
+                for (int index = 0; index < runId.length(); index++) {
+                    if (Character.isISOControl(runId.charAt(index))) {
+                        throw new IllegalArgumentException("Invalid Flower run identifier");
+                    }
+                }
+            }
+            return new ModelAnswer(probability, threshold, enforcement, runId);
+        } catch (final IndexOutOfBoundsException | NegativeArraySizeException | ArithmeticException malformed) {
             throw new IllegalArgumentException("Malformed Flower response", malformed);
         }
-        if (!Double.isFinite(probability) || probability < 0 || probability > 1) {
-            throw new IllegalArgumentException("Invalid Flower probability");
-        }
-        return probability;
+
+    }
+
+    public static double decodeProbability(final byte @NotNull [] body) {
+
+        return decodeAnswer(body).probability();
 
     }
 

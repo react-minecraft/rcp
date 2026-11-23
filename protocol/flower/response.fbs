@@ -1,9 +1,15 @@
 namespace com.g4vrk.react.inference.model.flower.protocol.schema;
 
-// Flower answers carry no decision threshold: aim-ai.yml alert.threshold decides.
-// The model family and name travel in the X-React-Model-Family and X-React-Model-Name headers.
+enum DeploymentMode:ubyte { Observe = 0, Enforce = 1, Unknown = 255 }
+
+// Schema version 2 carries the model threshold and enforcement decision.
 table FlowerResponse {
   cheat_probability:double;
+  schema_version:uint;
+  decision_threshold:double = -1.0;
+  deployment_mode:DeploymentMode = Unknown;
+  enforcement_enabled:bool = false;
+  run_id:string;
 }
 root_type FlowerResponse;
 file_identifier "GAFR";

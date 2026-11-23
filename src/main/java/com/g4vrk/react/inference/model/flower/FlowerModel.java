@@ -84,7 +84,7 @@ public final class FlowerModel implements AimModel {
     @Override
     public @NotNull ModelAnswer readResponse(final byte @NotNull [] body) {
 
-        return new ModelAnswer(FlowerCodec.decodeProbability(body), Double.NaN, true);
+        return FlowerCodec.decodeAnswer(body);
 
     }
 

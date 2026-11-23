@@ -217,7 +217,8 @@ public final class RequestDispatcher {
                 id.displayName(),
                 Math.min(1.0D, answer.probability()),
                 answer.threshold(),
-                answer.enforcement()
+                answer.enforcement(),
+                answer.runId()
         );
 
     }
