@@ -10,6 +10,10 @@ tasks.named<ShadowJar>("shadowJar") {
 
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 
+    filesMatching("META-INF/services/**") {
+        duplicatesStrategy = DuplicatesStrategy.INCLUDE
+    }
+
     mergeServiceFiles()
 
 }
