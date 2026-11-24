@@ -11,7 +11,7 @@
   <a href="https://github.com/react-minecraft/rcp/releases/tag/nightly">
     <img src="https://img.shields.io/badge/Nightly-EB2544?style=plastic&logo=github&logoColor=white" alt="Nightly">
   </a>
-  <a href="https://github.com/react-minecraft/rcp/blob/main/LICENSE">
+  <a href="https://github.com/react-minecraft/rcp/blob/master/LICENSE">
     <img src="https://img.shields.io/github/license/react-minecraft/rcp?style=plastic&logo=opensourceinitiative&logoColor=white" alt="License">
   </a>
 </p>
