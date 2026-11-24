@@ -9,7 +9,6 @@ import com.g4vrk.react.api.rcp.player.RCPPlayer;
 import com.g4vrk.react.api.rcp.player.RotationSample;
 import com.g4vrk.react.inference.model.RequestDispatcher;
 import com.g4vrk.react.inference.model.vector.model.AimFrame;
-import com.g4vrk.react.inference.model.vector.model.VectorFeature;
 import com.g4vrk.react.inference.model.vector.session.AimSession;
 import com.g4vrk.react.inference.model.vector.session.AimState;
 import com.g4vrk.schedula.task.TickSchedule;

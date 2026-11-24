@@ -43,6 +43,8 @@ dependencies {
     compileOnly("com.github.react-minecraft.plugin:react-api:${property("reactApiVersion")}")
 
     compileOnly(libs.cloud.core)
+    compileOnly(libs.adventure.api)
+    compileOnly(libs.slf4j.api)
     compileOnly(libs.configurate.yaml)
     compileOnly(libs.actions)
     compileOnly(libs.schedula.common)
@@ -56,6 +58,8 @@ dependencies {
 
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
+    testImplementation(libs.adventure.api)
+    testImplementation(libs.slf4j.api)
     testImplementation("com.github.react-minecraft.plugin:react-api:${property("reactApiVersion")}")
     testRuntimeOnly(libs.junit.platform.launcher)
 
