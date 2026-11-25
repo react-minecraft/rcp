@@ -30,13 +30,64 @@ public record InferenceConfigRegistry(
 
     public static @NotNull InferenceConfigRegistry load(final @NotNull Path directory, final @NotNull Logger logger)
             throws ConfigurateException {
+
         final String language = language();
+        final ConnectionConfig connection = file(
+                ConnectionConfig.class,
+                directory,
+                language,
+                "connection.yml",
+                logger,
+                ConfigMigrationChain.none()
+        );
+        final FlowerConfig flower = file(
+                FlowerConfig.class,
+                directory,
+                language,
+                "models/flower.yml",
+                logger,
+                ConfigMigrationChain.none()
+        );
+        final VectorConfig vector = file(
+                VectorConfig.class,
+                directory,
+                language,
+                "models/vector.yml",
+                logger,
+                ConfigMigrationChain.none()
+        );
+        validate(connection, flower, vector);
         return new InferenceConfigRegistry(
-                file(ConnectionConfig.class, directory, language, "connection.yml", logger, ConfigMigrationChain.none()),
-                file(FlowerConfig.class, directory, language, "models/flower.yml", logger, ConfigMigrationChain.none()),
-                file(VectorConfig.class, directory, language, "models/vector.yml", logger, ConfigMigrationChain.none()),
+                connection,
+                flower,
+                vector,
                 file(ActionsConfig.class, directory, language, "actions.yml", logger, ACTIONS_MIGRATIONS)
         );
+
+    }
+
+    public static void validate(
+            final @NotNull ConnectionConfig connection,
+            final @NotNull FlowerConfig flower,
+            final @NotNull VectorConfig vector
+    ) {
+
+        if (connection.timeouts() == null
+                || connection.timeouts().connect() == null
+                || connection.timeouts().connect().isNegative()
+                || connection.timeouts().connect().isZero()
+                || connection.timeouts().call() == null
+                || connection.timeouts().call().isNegative()
+                || connection.timeouts().call().isZero()) {
+            throw new IllegalArgumentException("connection.yml timeouts must be positive durations");
+        }
+        if (flower.step() < 1) {
+            throw new IllegalArgumentException("models/flower.yml step must be at least 1");
+        }
+        if (vector.combatTicks() < 1L) {
+            throw new IllegalArgumentException("models/vector.yml combat-ticks must be at least 1");
+        }
+
     }
 
     private static <T> T file(

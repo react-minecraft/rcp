@@ -197,8 +197,13 @@ public final class InferenceJsonCodec {
                 case 'n':
                     readLiteral("null");
                     return null;
-                default:
-                    return readNumber().doubleValue();
+                default: {
+                    final double number = readNumber().doubleValue();
+                    if (!Double.isFinite(number)) {
+                        throw error("JSON numbers must be finite");
+                    }
+                    return number;
+                }
             }
 
         }

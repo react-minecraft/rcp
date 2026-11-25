@@ -13,6 +13,8 @@ public final class FrameCodec {
 
     public static final int SCHEMA_VERSION = 2;
     public static final String SCHEMA_HASH = "b6e9e126d24af9bfeca4926b0c385bcd68f807b6baaf027934ec88cf14486c06";
+    private static final int BATCH_ITEM_COUNT = 1;
+    private static final int MODEL_ID = 2;
 
     private FrameCodec() {
     }
@@ -42,7 +44,7 @@ public final class FrameCodec {
         InferenceRequest.addToken(builder, tokenOffset);
         InferenceRequest.addFeatures(builder, featuresOffset);
         InferenceRequest.addFrameCount(builder, frames.length);
-        InferenceRequest.addModelId(builder, 2);
+        InferenceRequest.addModelId(builder, MODEL_ID);
         InferenceRequest.addSchemaVersion(builder, SCHEMA_VERSION);
         InferenceRequest.addPlayerName(builder, nameOffset);
         InferenceRequest.addSchemaHash(builder, schemaOffset);
@@ -67,7 +69,7 @@ public final class FrameCodec {
         final byte[] payload = encodeRequest(frames, playerName, token);
         return ByteBuffer.allocate(6 + payload.length)
                 .order(ByteOrder.LITTLE_ENDIAN)
-                .putShort((short) 1)
+                .putShort((short) BATCH_ITEM_COUNT)
                 .putInt(payload.length)
                 .put(payload)
                 .array();
@@ -119,7 +121,7 @@ public final class FrameCodec {
         final double threshold = response.decisionThreshold();
         final int mode = response.deploymentMode();
         final boolean enforcementEnabled = response.enforcementEnabled();
-        if (mode > 1 || enforcementEnabled != (mode == 1) || !Double.isFinite(threshold) || threshold < 0 || threshold > 1
+        if (mode < 0 || mode > 1 || enforcementEnabled != (mode == 1) || !Double.isFinite(threshold) || threshold < 0 || threshold > 1
                 || Double.compare(probability, prefixProbability) != 0) {
             throw new IllegalArgumentException("Inconsistent VECTOR response metadata");
         }
@@ -136,21 +138,31 @@ public final class FrameCodec {
         if (encoded.remaining() > 1024) {
             throw new IllegalArgumentException("Invalid run identifier");
         }
-        return response.runId();
+        final String runId = response.runId();
+        if (runId == null || runId.isBlank()) {
+            throw new IllegalArgumentException("Invalid run identifier");
+        }
+        for (int index = 0; index < runId.length(); index++) {
+            if (Character.isISOControl(runId.charAt(index))) {
+                throw new IllegalArgumentException("Invalid run identifier");
+            }
+        }
+        return runId;
 
     }
 
     private static float[] flatten(final AimFrame[] frames) {
 
-        final float[] features = new float[frames.length * AimFrame.INFERENCE_FEATURE_COUNT];
+        final int stride = AimFrame.INFERENCE_FEATURE_COUNT;
+        final float[] features = new float[frames.length * stride];
         for (int frameIndex = 0; frameIndex < frames.length; frameIndex++) {
-            final float[] inputs = frames[frameIndex].inferenceFeatures();
-            for (final float value : inputs) {
-                if (!Float.isFinite(value)) {
+            final int base = frameIndex * stride;
+            frames[frameIndex].copyInferenceFeaturesTo(features, base);
+            for (int index = base; index < base + stride; index++) {
+                if (!Float.isFinite(features[index])) {
                     throw new IllegalArgumentException("Nonfinite VECTOR feature");
                 }
             }
-            System.arraycopy(inputs, 0, features, frameIndex * inputs.length, inputs.length);
         }
         return features;
 

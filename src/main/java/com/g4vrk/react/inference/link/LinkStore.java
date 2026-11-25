@@ -31,6 +31,7 @@ public final class LinkStore {
 
     private static final int IV_LENGTH = 12;
     private static final int TAG_BITS = 128;
+    private static final long MAX_FILE_BYTES = 16L * 1024L;
     private static final String KEY_ALGORITHM = "Ed25519";
     private static final SecureRandom RANDOM = new SecureRandom();
 
@@ -49,7 +50,7 @@ public final class LinkStore {
      */
     public @Nullable Credential load() throws IOException {
 
-        if (!Files.isRegularFile(file)) {
+        if (!Files.isRegularFile(file) || Files.size(file) > MAX_FILE_BYTES) {
             return null;
         }
         final byte[] data;
@@ -115,11 +116,14 @@ public final class LinkStore {
 
     }
 
-    private static Credential read(final String plaintext) throws GeneralSecurityException {
+    private static @Nullable Credential read(final String plaintext) throws GeneralSecurityException {
 
-        final String[] lines = plaintext.split("\n");
-        if (lines.length < 3) {
-            return Credential.unsigned(lines[0]);
+        final String[] lines = plaintext.split("\n", -1);
+        if (lines.length == 1) {
+            return lines[0].isBlank() ? null : Credential.unsigned(lines[0]);
+        }
+        if (lines.length != 3 || lines[0].isBlank()) {
+            return null;
         }
         final Base64.Decoder decoder = Base64.getDecoder();
         final KeyFactory factory = KeyFactory.getInstance(KEY_ALGORITHM);
