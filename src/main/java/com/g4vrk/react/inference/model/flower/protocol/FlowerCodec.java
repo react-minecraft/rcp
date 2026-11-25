@@ -28,16 +28,22 @@ public final class FlowerCodec {
         if (frames.length % FEATURES_PER_FRAME != 0) {
             throw new IllegalArgumentException("Flower frames must be whole rotation samples");
         }
-        /*
-         * The sample stores every pair pitch first; the model reads yaw (x) first, so each pair is swapped.
-         */
-        final float[] values = new float[frames.length];
-        for (int i = 0; i < frames.length; i += 2) {
-            values[i] = finite(frames[i + 1]);
-            values[i + 1] = finite(frames[i]);
+        for (final float value : frames) {
+            if (!Float.isFinite(value)) {
+                throw new IllegalArgumentException("Nonfinite Flower rotation");
+            }
         }
-        final FlatBufferBuilder builder = new FlatBufferBuilder(64 + values.length * 4);
-        final int framesOffset = FlowerRequest.createFramesVector(builder, values);
+        final FlatBufferBuilder builder = new FlatBufferBuilder(64 + frames.length * 4);
+        /*
+         * The sample stores every pair pitch first; FlatBuffers vectors populate back-to-front so
+         * pushing (pitch, yaw) yields (yaw, pitch) at index 0 without a temporary copy array.
+         */
+        FlowerRequest.startFramesVector(builder, frames.length);
+        for (int i = frames.length - 2; i >= 0; i -= 2) {
+            builder.addFloat(frames[i]);
+            builder.addFloat(frames[i + 1]);
+        }
+        final int framesOffset = builder.endVector();
         final int nameOffset = builder.createString(playerName);
         final int tokenOffset = token == null || token.isBlank() ? 0 : builder.createString(token);
         FlowerRequest.finishFlowerRequestBuffer(
@@ -45,16 +51,6 @@ public final class FlowerCodec {
                 FlowerRequest.createFlowerRequest(builder, tokenOffset, nameOffset, framesOffset)
         );
         return builder.sizedByteArray();
-
-    }
-
-
-    private static float finite(final float value) {
-
-        if (!Float.isFinite(value)) {
-            throw new IllegalArgumentException("Nonfinite Flower rotation");
-        }
-        return value;
 
     }
 
@@ -75,13 +71,13 @@ public final class FlowerCodec {
             }
             final long schemaVersion = response.schemaVersion();
             if (schemaVersion == 0L) {
-                return new ModelAnswer(probability, Double.NaN, true);
+                return new ModelAnswer(probability, Double.NaN, false);
             }
             final double threshold = response.decisionThreshold();
             final int mode = response.deploymentMode();
             final boolean enforcement = response.enforcementEnabled();
             final ByteBuffer encodedRunId = response.runIdAsByteBuffer();
-            if (schemaVersion != 2L || mode > 1 || enforcement != (mode == 1)
+            if (schemaVersion != 2L || mode < 0 || mode > 1 || enforcement != (mode == 1)
                     || !Double.isFinite(threshold) || threshold < 0.0D || threshold > 1.0D
                     || !response.hasEnforcementEnabled()
                     || (encodedRunId != null && encodedRunId.remaining() > 1024)) {

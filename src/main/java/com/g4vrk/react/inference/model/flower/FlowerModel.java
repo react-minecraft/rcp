@@ -77,7 +77,9 @@ public final class FlowerModel implements AimModel {
                 history.length
         );
         final String name = player.name();
-        dispatcher.send(player, this, claim, token -> new HttpRequest(FlowerCodec.encodeRequest(snapshot, name, token)));
+        dispatcher.send(player, this, claim, token -> new HttpRequest(
+                FlowerCodec.encodeRequest(snapshot, name, token), Map.of("X-React-Observe", "1")
+        ));
 
     }
 

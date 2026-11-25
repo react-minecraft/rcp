@@ -67,7 +67,7 @@ class FlowerCodecTest {
         FlowerResponse.finishFlowerResponseBuffer(builder, FlowerResponse.createFlowerResponse(builder, .75));
         final ModelAnswer answer = FlowerCodec.decodeAnswer(builder.sizedByteArray());
         assertEquals(.75, answer.probability());
-        assertTrue(answer.enforcement());
+        assertFalse(answer.enforcement());
         assertTrue(Double.isNaN(answer.threshold()));
         assertNull(answer.runId());
 
