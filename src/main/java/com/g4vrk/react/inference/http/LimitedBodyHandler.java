@@ -19,12 +19,17 @@ public final class LimitedBodyHandler implements HttpResponse.BodyHandler<byte[]
 
     public LimitedBodyHandler(final int maximumBytes) {
 
+        if (maximumBytes <= 0) {
+            throw new IllegalArgumentException("maximumBytes must be positive");
+        }
         this.maximumBytes = maximumBytes;
 
     }
 
     @Override
-    public HttpResponse.BodySubscriber<byte[]> apply(final HttpResponse.ResponseInfo responseInfo) {
+    public HttpResponse.@NotNull BodySubscriber<byte @NotNull []> apply(
+            final HttpResponse.@NotNull ResponseInfo responseInfo
+    ) {
 
         return new LimitedBodySubscriber(maximumBytes);
 

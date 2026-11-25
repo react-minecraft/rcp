@@ -11,21 +11,16 @@ import org.jetbrains.annotations.NotNull;
 public final class ServerFingerprint {
 
     private ServerFingerprint() {
-    }
-
-    static @NotNull String hash(final @NotNull String value) {
-
-        return HexCodec.encode(sha256(value));
 
     }
 
-    static byte[] sha256(final @NotNull String value) {
+    static byte @NotNull [] sha256(final @NotNull String value) {
 
         return sha256(value.getBytes(StandardCharsets.UTF_8));
 
     }
 
-    static byte[] sha256(final byte @NotNull [] value) {
+    static byte @NotNull [] sha256(final byte @NotNull [] value) {
 
         try {
             return MessageDigest.getInstance("SHA-256").digest(value);

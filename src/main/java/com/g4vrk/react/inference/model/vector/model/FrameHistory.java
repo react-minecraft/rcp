@@ -80,7 +80,7 @@ public final class FrameHistory {
 
     }
 
-    public synchronized @Nullable AimFrame[] latest(final int count) {
+    public synchronized AimFrame @Nullable [] latest(final int count) {
 
         if (count < 0) {
             throw new IllegalArgumentException("count must not be negative");

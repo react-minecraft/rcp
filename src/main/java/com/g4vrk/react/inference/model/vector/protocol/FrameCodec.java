@@ -9,6 +9,9 @@ import java.nio.ByteOrder;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+/**
+ * Vector wire format encoder and decoder ({@code protocol/vector}).
+ */
 public final class FrameCodec {
 
     public static final int SCHEMA_VERSION = 2;
@@ -17,16 +20,86 @@ public final class FrameCodec {
     private static final int MODEL_ID = 2;
 
     private FrameCodec() {
+
     }
 
-    public static byte[] encodeRequest(final @NotNull AimFrame[] frames) {
+    public static byte @NotNull [] encodeRequest(final AimFrame @NotNull [] frames) {
 
         return encodeRequest(frames, "Unknown", null);
 
     }
 
-    public static byte[] encodeRequest(
-            final @NotNull AimFrame[] frames,
+    public static byte @NotNull [] encodeRequest(
+            final AimFrame @NotNull [] frames,
+            final @NotNull String playerName,
+            final @Nullable String token
+    ) {
+
+        return buildRequest(frames, playerName, token).sizedByteArray();
+
+    }
+
+    public static byte @NotNull [] encodeBatch(final AimFrame @NotNull [] frames) {
+
+        return encodeBatch(frames, "Unknown", null);
+
+    }
+
+    public static byte @NotNull [] encodeBatch(
+            final AimFrame @NotNull [] frames,
+            final @NotNull String playerName,
+            final @Nullable String token
+    ) {
+
+        final FlatBufferBuilder builder = buildRequest(frames, playerName, token);
+        final ByteBuffer data = builder.dataBuffer();
+        final int payloadLength = data.remaining();
+        final byte[] batch = new byte[6 + payloadLength];
+        batch[0] = (byte) BATCH_ITEM_COUNT;
+        batch[1] = (byte) (BATCH_ITEM_COUNT >>> 8);
+        batch[2] = (byte) payloadLength;
+        batch[3] = (byte) (payloadLength >>> 8);
+        batch[4] = (byte) (payloadLength >>> 16);
+        batch[5] = (byte) (payloadLength >>> 24);
+        data.get(batch, 6, payloadLength);
+        return batch;
+
+    }
+
+    public static double decodeResponse(final byte @NotNull [] body) {
+
+        if (body.length < 14 || !hasBatchIdentifier(body)) {
+            throw new IllegalArgumentException("Invalid VECTOR response; expected GAIB");
+        }
+        final ByteBuffer buffer = ByteBuffer.wrap(body).order(ByteOrder.LITTLE_ENDIAN);
+        buffer.position(4);
+        if (Short.toUnsignedInt(buffer.getShort()) != 1) {
+            throw new IllegalArgumentException("Vector response item count must be 1");
+        }
+        final double probability = buffer.getDouble();
+        if (!Double.isFinite(probability) || probability < 0 || probability > 1) {
+            throw new IllegalArgumentException("Invalid VECTOR probability");
+        }
+        return probability;
+
+    }
+
+    public static @NotNull Prediction decodePrediction(final byte @NotNull [] body) {
+
+        final double prefixProbability = decodeResponse(body);
+        final ByteBuffer payload = ByteBuffer.wrap(body, 14, body.length - 14)
+                .slice()
+                .order(ByteOrder.LITTLE_ENDIAN);
+        try {
+            return readPrediction(payload, prefixProbability);
+        } catch (final IndexOutOfBoundsException | NegativeArraySizeException | ArithmeticException malformed) {
+            throw new IllegalArgumentException("Malformed VECTOR response", malformed);
+        }
+
+    }
+
+    private static @NotNull FlatBufferBuilder buildRequest(
+            final AimFrame @NotNull [] frames,
             final @NotNull String playerName,
             final @Nullable String token
     ) {
@@ -50,65 +123,14 @@ public final class FrameCodec {
         InferenceRequest.addSchemaHash(builder, schemaOffset);
         InferenceRequest.addSupportsObservation(builder, true);
         InferenceRequest.finishInferenceRequestBuffer(builder, InferenceRequest.endInferenceRequest(builder));
-        return builder.sizedByteArray();
+        return builder;
 
     }
 
-    public static byte[] encodeBatch(final @NotNull AimFrame[] frames) {
-
-        return encodeBatch(frames, "Unknown", null);
-
-    }
-
-    public static byte[] encodeBatch(
-            final @NotNull AimFrame[] frames,
-            final @NotNull String playerName,
-            final @Nullable String token
+    private static @NotNull Prediction readPrediction(
+            final @NotNull ByteBuffer payload,
+            final double prefixProbability
     ) {
-
-        final byte[] payload = encodeRequest(frames, playerName, token);
-        return ByteBuffer.allocate(6 + payload.length)
-                .order(ByteOrder.LITTLE_ENDIAN)
-                .putShort((short) BATCH_ITEM_COUNT)
-                .putInt(payload.length)
-                .put(payload)
-                .array();
-
-    }
-
-    public static double decodeResponse(final @NotNull byte[] body) {
-
-        if (body.length < 14 || !hasBatchIdentifier(body)) {
-            throw new IllegalArgumentException("Invalid VECTOR response; expected GAIB");
-        }
-        final ByteBuffer buffer = ByteBuffer.wrap(body).order(ByteOrder.LITTLE_ENDIAN);
-        buffer.position(4);
-        if (Short.toUnsignedInt(buffer.getShort()) != 1) {
-            throw new IllegalArgumentException("Vector response item count must be 1");
-        }
-        final double probability = buffer.getDouble();
-        if (!Double.isFinite(probability) || probability < 0 || probability > 1) {
-            throw new IllegalArgumentException("Invalid VECTOR probability");
-        }
-        return probability;
-
-    }
-
-    public static @NotNull Prediction decodePrediction(final @NotNull byte[] body) {
-
-        final double prefixProbability = decodeResponse(body);
-        final ByteBuffer payload = ByteBuffer.wrap(body, 14, body.length - 14)
-                .slice()
-                .order(ByteOrder.LITTLE_ENDIAN);
-        try {
-            return readPrediction(payload, prefixProbability);
-        } catch (final IndexOutOfBoundsException | NegativeArraySizeException | ArithmeticException malformed) {
-            throw new IllegalArgumentException("Malformed VECTOR response", malformed);
-        }
-
-    }
-
-    private static Prediction readPrediction(final ByteBuffer payload, final double prefixProbability) {
 
         if (!InferenceResponse.InferenceResponseBufferHasIdentifier(payload)) {
             throw new IllegalArgumentException("Expected GAIR response");
@@ -129,7 +151,7 @@ public final class FrameCodec {
 
     }
 
-    private static String readRunId(final InferenceResponse response) {
+    private static @NotNull String readRunId(final @NotNull InferenceResponse response) {
 
         final ByteBuffer encoded = response.runIdAsByteBuffer();
         if (encoded == null) {
@@ -151,7 +173,7 @@ public final class FrameCodec {
 
     }
 
-    private static float[] flatten(final AimFrame[] frames) {
+    private static float @NotNull [] flatten(final AimFrame @NotNull [] frames) {
 
         final int stride = AimFrame.INFERENCE_FEATURE_COUNT;
         final float[] features = new float[frames.length * stride];
@@ -168,13 +190,26 @@ public final class FrameCodec {
 
     }
 
-    private static boolean hasBatchIdentifier(final byte[] body) {
+    private static boolean hasBatchIdentifier(final byte @NotNull [] body) {
 
         return body[0] == 'G' && body[1] == 'A' && body[2] == 'I' && body[3] == 'B';
 
     }
 
-    public record Prediction(double probability, double threshold, boolean enforcementEnabled, String runId) {
+    /**
+     * Decoded inference verdict for one Vector batch.
+     *
+     * @param probability        cheat probability in [0, 1]
+     * @param threshold          backend decision threshold
+     * @param enforcementEnabled whether enforcement is enabled
+     * @param runId              backend model run identifier
+     */
+    public record Prediction(
+            double probability,
+            double threshold,
+            boolean enforcementEnabled,
+            @NotNull String runId
+    ) {
 
     }
 

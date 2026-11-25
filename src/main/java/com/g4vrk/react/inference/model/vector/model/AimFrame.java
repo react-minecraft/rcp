@@ -5,11 +5,16 @@ import java.util.Locale;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+/**
+ * One Vector aim sample holding rotation deltas and extracted target/mode features.
+ */
 public final class AimFrame {
 
     public static final int DATASET_FEATURE_COUNT = 8 + VectorFeature.COUNT;
     public static final int INFERENCE_FEATURE_COUNT = DATASET_FEATURE_COUNT - 1;
     public static final String BASE_HEADER = "delta_yaw,delta_pitch,accel_yaw,accel_pitch,jerk_yaw,jerk_pitch,gcd_error_yaw,gcd_error_pitch";
+    private static final float QUANTIZATION_DIRECT_THRESHOLD = 8_388_608.0f;
+    private static final double SIX_DECIMALS_SCALE = 1_000_000.0d;
 
     private final float[] features;
     private volatile float[] inferenceFeatures;
@@ -23,7 +28,7 @@ public final class AimFrame {
             final float jerkPitch,
             final float gcdErrorYaw,
             final float gcdErrorPitch,
-            final @Nullable float[] vector
+            final float @Nullable [] vector
     ) {
 
         if (vector != null && vector.length != VectorFeature.COUNT) {
@@ -44,7 +49,7 @@ public final class AimFrame {
 
     }
 
-    public static @NotNull AimFrame fromFeatures(final @NotNull float[] values) {
+    public static @NotNull AimFrame fromFeatures(final float @NotNull [] values) {
 
         if (values.length != DATASET_FEATURE_COUNT) {
             throw new IllegalArgumentException("Expected " + DATASET_FEATURE_COUNT + " VECTOR features");
@@ -62,13 +67,13 @@ public final class AimFrame {
 
     }
 
-    public @NotNull float[] datasetFeatures() {
+    public float @NotNull [] datasetFeatures() {
 
         return features.clone();
 
     }
 
-    public @NotNull float[] inferenceFeatures() {
+    public float @NotNull [] inferenceFeatures() {
 
         return resolveInferenceFeatures().clone();
 
@@ -90,20 +95,6 @@ public final class AimFrame {
 
     }
 
-    private float[] resolveInferenceFeatures() {
-
-        float[] inputs = inferenceFeatures;
-        if (inputs == null) {
-            inputs = new float[INFERENCE_FEATURE_COUNT];
-            for (int index = 0; index < inputs.length; index++) {
-                inputs[index] = Float.parseFloat(formatDatasetValue(features[index]));
-            }
-            inferenceFeatures = inputs;
-        }
-        return inputs;
-
-    }
-
     public @NotNull String toCsvRow(final boolean cheater) {
 
         final StringBuilder row = new StringBuilder(cheater ? "1" : "0");
@@ -114,7 +105,36 @@ public final class AimFrame {
 
     }
 
-    private static String formatDatasetValue(final float value) {
+    static float roundToSixDecimals(final float value) {
+
+        if (!Float.isFinite(value) || Math.abs(value) >= QUANTIZATION_DIRECT_THRESHOLD) {
+            return value;
+        }
+        /*
+         * Widening float (24-bit) * 1e6 (14-bit) fits within IEEE-754 double's 53-bit significand
+         * with zero multiplication rounding, matching Locale.US "%.6f" half-up CSV quantization.
+         */
+        final double scaled = Math.abs((double) value) * SIX_DECIMALS_SCALE;
+        final double rounded = Math.floor(scaled + 0.5d);
+        return Math.copySign((float) (rounded / SIX_DECIMALS_SCALE), value);
+
+    }
+
+    private float @NotNull [] resolveInferenceFeatures() {
+
+        float[] inputs = inferenceFeatures;
+        if (inputs == null) {
+            inputs = new float[INFERENCE_FEATURE_COUNT];
+            for (int index = 0; index < inputs.length; index++) {
+                inputs[index] = roundToSixDecimals(features[index]);
+            }
+            inferenceFeatures = inputs;
+        }
+        return inputs;
+
+    }
+
+    private static @NotNull String formatDatasetValue(final float value) {
 
         return String.format(Locale.US, "%.6f", value);
 

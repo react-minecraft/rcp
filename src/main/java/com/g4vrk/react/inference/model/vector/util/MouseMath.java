@@ -1,8 +1,11 @@
 package com.g4vrk.react.inference.model.vector.util;
 
+/**
+ * Rotation delta, acceleration, jerk, and GCD math for Vector aim features.
+ */
 public final class MouseMath {
 
-    private static final double MINIMUM_DIVISOR = Math.pow(0.2, 3.0) * 8.0 * 0.15 - 0.001;
+    public static final double MINIMUM_DIVISOR = (double) ((float) Math.pow(0.2f, 3.0)) * 8.0 * 0.15 - 0.001;
 
     private MouseMath() {
 
@@ -10,19 +13,28 @@ public final class MouseMath {
 
     }
 
-    public static float calculateAcceleration(final float currentDelta, final float previousDelta) {
+    public static float calculateAcceleration(
+            final float currentDelta,
+            final float previousDelta
+    ) {
 
         return currentDelta - previousDelta;
 
     }
 
-    public static float calculateJerk(final float currentAccel, final float previousAccel) {
+    public static float calculateJerk(
+            final float currentAccel,
+            final float previousAccel
+    ) {
 
         return currentAccel - previousAccel;
 
     }
 
-    public static float calculateGCDError(final float currentDelta, final float previousDelta) {
+    public static float calculateGCDError(
+            final float currentDelta,
+            final float previousDelta
+    ) {
 
         final double current = Math.abs(currentDelta);
         final double previous = Math.abs(previousDelta);
@@ -35,18 +47,6 @@ public final class MouseMath {
         }
         final double snapped = (double) Math.round(current / gcd) * gcd;
         return (float) (Math.abs(current - snapped) / gcd);
-
-    }
-
-    public static float calculateGrid(final float currentDelta, final float previousDelta) {
-
-        final double current = Math.abs(currentDelta);
-        final double previous = Math.abs(previousDelta);
-        if (current < MINIMUM_DIVISOR || previous < MINIMUM_DIVISOR) {
-            return 0.0f;
-        }
-        final double gcd = gcd(current, previous);
-        return gcd < MINIMUM_DIVISOR ? 0.0f : (float) gcd;
 
     }
 
@@ -63,7 +63,10 @@ public final class MouseMath {
 
     }
 
-    public static double gcd(final double first, final double second) {
+    public static double gcd(
+            final double first,
+            final double second
+    ) {
 
         double a = Math.abs(first);
         double b = Math.abs(second);
@@ -81,24 +84,6 @@ public final class MouseMath {
             b = remainder;
         }
         return a;
-
-    }
-
-    public static float distanceToGrid(final float delta, final float grid) {
-
-        final double absDelta = Math.abs(delta);
-        final double absGrid = Math.abs(grid);
-        if (absDelta < MINIMUM_DIVISOR || absGrid < MINIMUM_DIVISOR) {
-            return 0.0f;
-        }
-        final double snapped = (double) Math.round(absDelta / absGrid) * absGrid;
-        return (float) Math.abs(absDelta - snapped);
-
-    }
-
-    public static float getMinimumDivisor() {
-
-        return (float) MINIMUM_DIVISOR;
 
     }
 

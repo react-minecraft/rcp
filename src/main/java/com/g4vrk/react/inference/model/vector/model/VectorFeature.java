@@ -31,13 +31,19 @@ public enum VectorFeature {
 
     }
 
-    public void put(final @NotNull float[] row, final float value) {
+    public void put(
+            final float @NotNull [] row,
+            final float value
+    ) {
 
         row[ordinal()] = value;
 
     }
 
-    public void put(final @NotNull float[] row, final boolean flag) {
+    public void put(
+            final float @NotNull [] row,
+            final boolean flag
+    ) {
 
         row[ordinal()] = flag ? 1.0f : 0.0f;
 

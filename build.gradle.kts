@@ -60,6 +60,11 @@ dependencies {
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.adventure.api)
     testImplementation(libs.slf4j.api)
+    testImplementation(libs.configurate.yaml)
+    testImplementation(libs.cloud.core)
+    testImplementation(libs.actions)
+    testImplementation(libs.schedula.common)
+    testImplementation(libs.textserializer.legacy)
     testImplementation("com.github.react-minecraft.plugin:react-api:${property("reactApiVersion")}")
     testRuntimeOnly(libs.junit.platform.launcher)
 

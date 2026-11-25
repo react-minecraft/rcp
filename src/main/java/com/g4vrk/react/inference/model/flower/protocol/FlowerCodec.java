@@ -17,9 +17,10 @@ public final class FlowerCodec {
     private static final int FEATURES_PER_FRAME = RotationSample.STRIDE;
 
     private FlowerCodec() {
+
     }
 
-    public static byte[] encodeRequest(
+    public static byte @NotNull [] encodeRequest(
             final float @NotNull [] frames,
             final @NotNull String playerName,
             final @Nullable String token
@@ -98,12 +99,6 @@ public final class FlowerCodec {
         } catch (final IndexOutOfBoundsException | NegativeArraySizeException | ArithmeticException malformed) {
             throw new IllegalArgumentException("Malformed Flower response", malformed);
         }
-
-    }
-
-    public static double decodeProbability(final byte @NotNull [] body) {
-
-        return decodeAnswer(body).probability();
 
     }
 

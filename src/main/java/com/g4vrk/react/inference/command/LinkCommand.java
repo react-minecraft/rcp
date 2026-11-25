@@ -3,22 +3,23 @@ package com.g4vrk.react.inference.command;
 import com.g4vrk.functionalActions.list.ExecutableActionList;
 import com.g4vrk.functionalActions.parser.ActionParser;
 import com.g4vrk.react.api.extension.command.CommandRegistrar;
+import com.g4vrk.react.api.platform.player.PlatformPlayer;
+import com.g4vrk.react.api.platform.sender.PlatformSender;
 import com.g4vrk.react.inference.config.ActionsConfig;
+import com.g4vrk.react.inference.server.AccountClient;
 import com.g4vrk.react.inference.server.InferenceServer;
 import com.g4vrk.schedula.task.TickSchedule;
 import com.g4vrk.schedula.task.scheduler.TaskScheduler;
-import com.g4vrk.react.api.platform.player.PlatformPlayer;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.function.Supplier;
 import net.kyori.adventure.audience.Audience;
-import com.g4vrk.react.api.platform.sender.PlatformSender;
 import org.incendo.cloud.Command;
 import org.incendo.cloud.key.CloudKey;
 import org.incendo.cloud.parser.standard.StringParser;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
-
-import java.util.Map;
-import java.util.concurrent.CompletableFuture;
-import java.util.function.Supplier;
 
 /**
  * {@code /react link}: links this server to the owner's account on the site.
@@ -43,8 +44,10 @@ public final class LinkCommand {
     @FunctionalInterface
     public interface CredentialHandler {
 
-        void accept(final @NotNull InferenceServer server, final @NotNull InferenceServer.ConnectResult result) throws Exception;
-
+        void accept(
+                final @NotNull InferenceServer server,
+                final @NotNull AccountClient.ConnectResult result
+        ) throws Exception;
 
     }
 
@@ -69,7 +72,10 @@ public final class LinkCommand {
 
     }
 
-    public void reload(final @NotNull ActionParser<Audience> parser, final @NotNull ActionsConfig config) {
+    public void reload(
+            final @NotNull ActionParser<Audience> parser,
+            final @NotNull ActionsConfig config
+    ) {
 
         final ActionsConfig.Link link = config.link();
         this.actions = new ActionSet(
@@ -98,14 +104,17 @@ public final class LinkCommand {
 
     }
 
-    private void execute(final @NotNull PlatformSender sender, final @NotNull String code) {
+    private void execute(
+            final @NotNull PlatformSender sender,
+            final @NotNull String code
+    ) {
 
         final ActionSet snapshot = this.actions;
         final InferenceServer current = server.get();
-        final CompletableFuture<InferenceServer.ConnectResult> connection;
+        final CompletableFuture<AccountClient.ConnectResult> connection;
         if (code.isEmpty()) {
-            snapshot.requesting().run(sender);
-            connection = current.connectWithLink(link -> run(sender, snapshot.open(), Map.of(
+            run(sender, snapshot.requesting(), Map.of());
+            connection = current.account().connectWithLink(link -> run(sender, snapshot.open(), Map.of(
                     "{url}",
                     link.url(),
                     "{code}",
@@ -114,12 +123,12 @@ public final class LinkCommand {
                     Long.toString(Math.max(1L, link.expiresInSeconds() / 60L))
             )));
         } else {
-            snapshot.checking().run(sender);
-            connection = current.connect(code);
+            run(sender, snapshot.checking(), Map.of());
+            connection = current.account().connect(code);
         }
         connection.whenComplete((result, failure) -> {
             if (failure != null) {
-                fail(sender, String.valueOf(failure.getMessage()));
+                fail(sender, failureMessage(failure));
             } else if (result.credential() == null) {
                 fail(sender, result.detail());
             } else {
@@ -129,11 +138,14 @@ public final class LinkCommand {
 
     }
 
-    private void check(final @NotNull PlatformSender sender, final @NotNull InferenceServer current) {
+    private void check(
+            final @NotNull PlatformSender sender,
+            final @NotNull InferenceServer current
+    ) {
 
-        current.checkConnection().whenComplete((result, failure) -> {
+        current.account().checkConnection().whenComplete((result, failure) -> {
             if (failure != null) {
-                fail(sender, String.valueOf(failure.getMessage()));
+                fail(sender, failureMessage(failure));
             } else if (result.problem() != null) {
                 fail(sender, result.problem());
             } else {
@@ -147,7 +159,7 @@ public final class LinkCommand {
     private void finish(
             final @NotNull PlatformSender sender,
             final @NotNull InferenceServer current,
-            final InferenceServer.ConnectResult result
+            final @NotNull AccountClient.ConnectResult result
     ) {
 
         final ActionSet snapshot = this.actions;
@@ -155,14 +167,17 @@ public final class LinkCommand {
             onLinked.accept(current, result);
         } catch (final Exception exception) {
             logger.error("Could not save the link", exception);
-            fail(sender, String.valueOf(exception.getMessage()));
+            fail(sender, failureMessage(exception));
             return;
         }
         run(sender, snapshot.linked(), Map.of("{server}", result.server(), "{models}", snapshot.texts().describe(result.models())));
 
     }
 
-    private void fail(final @NotNull PlatformSender sender, final @NotNull String reason) {
+    private void fail(
+            final @NotNull PlatformSender sender,
+            final @NotNull String reason
+    ) {
 
         run(sender, this.actions.failed(), Map.of("{reason}", reason));
 
@@ -174,19 +189,60 @@ public final class LinkCommand {
             final @NotNull Map<String, String> placeholders
     ) {
 
-        final Runnable response = () -> actions.run(sender, text -> {
-            String replaced = text;
-            for (final Map.Entry<String, String> placeholder : placeholders.entrySet()) {
-                replaced = replaced.replace(placeholder.getKey(), placeholder.getValue());
-            }
-            return replaced;
-        });
+        final Runnable response = () -> actions.run(sender, text -> replacePlaceholders(text, placeholders));
         final PlatformPlayer player = sender.asPlayer();
         if (player != null) {
             scheduler.scheduleEntity(player, response, TickSchedule.instant());
         } else {
             scheduler.schedule(response, TickSchedule.instant());
         }
+
+    }
+
+    private static @NotNull String failureMessage(final @NotNull Throwable failure) {
+
+        Throwable root = failure;
+        while (root instanceof CompletionException && root.getCause() != null) {
+            root = root.getCause();
+        }
+        final String message = root.getMessage();
+        return message != null && !message.isBlank() ? message : root.getClass().getSimpleName();
+
+    }
+
+    private static @NotNull String replacePlaceholders(
+            final @NotNull String text,
+            final @NotNull Map<String, String> placeholders
+    ) {
+
+        final int firstOpen = text.indexOf('{');
+        if (firstOpen < 0 || placeholders.isEmpty()) {
+            return text;
+        }
+        final StringBuilder result = new StringBuilder(text.length() + 16);
+        int cursor = 0;
+        while (cursor < text.length()) {
+            final int open = text.indexOf('{', cursor);
+            if (open < 0) {
+                result.append(text, cursor, text.length());
+                break;
+            }
+            final int close = text.indexOf('}', open + 1);
+            if (close < 0) {
+                result.append(text, cursor, text.length());
+                break;
+            }
+            final String replacement = placeholders.get(text.substring(open, close + 1));
+            if (replacement != null) {
+                result.append(text, cursor, open);
+                result.append(replacement);
+                cursor = close + 1;
+            } else {
+                result.append(text, cursor, open + 1);
+                cursor = open + 1;
+            }
+        }
+        return result.toString();
 
     }
 

@@ -51,4 +51,10 @@ public final class AimModelRegistry {
 
     }
 
+    public void shutdown() {
+
+        models.forEach(AimModel::shutdown);
+
+    }
+
 }

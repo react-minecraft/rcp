@@ -17,9 +17,9 @@ import org.jetbrains.annotations.NotNull;
 
 /**
  * The Flower and Vector models, their packet listeners and the dispatcher that sends their requests.
- * <p>
- * Packet listeners cannot be removed while the RCP runs, so the models live as long as the RCP;
- * a reload only reconfigures them.
+ *
+ * <p>Packet listeners cannot be removed while the RCP runs, so the models live as long as the RCP;
+ * a reload only reconfigures them, and {@link #shutdown()} releases retained state on disable.</p>
  */
 public final class ModelService implements RCPPlayerListener {
 
@@ -28,6 +28,7 @@ public final class ModelService implements RCPPlayerListener {
     private final FlowerModel flowerUltra;
     private final VectorModel vector;
     private final AimModelRegistry models;
+    private volatile boolean closed;
 
     public ModelService(
             final @NotNull RCPEnvironment environment,
@@ -65,12 +66,27 @@ public final class ModelService implements RCPPlayerListener {
 
     }
 
-    @Override
-    public void onRotation(final @NotNull RCPPlayer player, final float @NotNull [] sample) {
+    public void shutdown() {
 
-        final long generation = dispatcher.inputGeneration(player.uniqueId());
-        synchronized (dispatcher.playerLock(player.uniqueId())) {
-            if (generation != dispatcher.inputGeneration(player.uniqueId())) {
+        closed = true;
+        models.shutdown();
+        dispatcher.shutdown();
+
+    }
+
+    @Override
+    public void onRotation(
+            final @NotNull RCPPlayer player,
+            final float @NotNull [] sample
+    ) {
+
+        if (closed) {
+            return;
+        }
+        final UUID uuid = player.uniqueId();
+        final long generation = dispatcher.inputGeneration(uuid);
+        synchronized (dispatcher.playerLock(uuid)) {
+            if (closed || generation != dispatcher.inputGeneration(uuid)) {
                 return;
             }
             for (final AimModel model : models.all()) {
@@ -81,11 +97,18 @@ public final class ModelService implements RCPPlayerListener {
     }
 
     @Override
-    public void onAttack(final @NotNull RCPPlayer player, final int targetEntityId) {
+    public void onAttack(
+            final @NotNull RCPPlayer player,
+            final int targetEntityId
+    ) {
 
-        final long generation = dispatcher.inputGeneration(player.uniqueId());
-        synchronized (dispatcher.playerLock(player.uniqueId())) {
-            if (generation != dispatcher.inputGeneration(player.uniqueId())) {
+        if (closed) {
+            return;
+        }
+        final UUID uuid = player.uniqueId();
+        final long generation = dispatcher.inputGeneration(uuid);
+        synchronized (dispatcher.playerLock(uuid)) {
+            if (closed || generation != dispatcher.inputGeneration(uuid)) {
                 return;
             }
             for (final AimModel model : models.all()) {

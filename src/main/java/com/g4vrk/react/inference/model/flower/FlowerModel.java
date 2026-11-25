@@ -2,7 +2,7 @@ package com.g4vrk.react.inference.model.flower;
 
 import com.g4vrk.react.api.rcp.player.RCPPlayer;
 import com.g4vrk.react.api.rcp.player.RotationSample;
-import com.g4vrk.react.inference.http.model.HttpRequest;
+import com.g4vrk.react.inference.http.model.InferencePayload;
 import com.g4vrk.react.inference.model.AimModel;
 import com.g4vrk.react.inference.model.ModelAnswer;
 import com.g4vrk.react.inference.model.ModelId;
@@ -21,15 +21,23 @@ import org.jetbrains.annotations.NotNull;
  */
 public final class FlowerModel implements AimModel {
 
+    private static final Map<String, String> HEADERS = Map.of("X-React-Observe", "1");
+
     private final ModelId id;
     private final RequestDispatcher dispatcher;
     private volatile int step;
     private final Map<UUID, AtomicInteger> samples = new ConcurrentHashMap<>();
 
     /**
-     * @param step new rotations between two requests, from {@code models/flower.yml}
+     * @param id         model identifier
+     * @param dispatcher request dispatcher
+     * @param step       new rotations between two requests, from {@code models/flower.yml}
      */
-    public FlowerModel(final @NotNull ModelId id, final @NotNull RequestDispatcher dispatcher, final int step) {
+    public FlowerModel(
+            final @NotNull ModelId id,
+            final @NotNull RequestDispatcher dispatcher,
+            final int step
+    ) {
 
         this.id = id;
         this.dispatcher = dispatcher;
@@ -51,7 +59,10 @@ public final class FlowerModel implements AimModel {
     }
 
     @Override
-    public void onRotation(final @NotNull RCPPlayer player, final float @NotNull [] sample) {
+    public void onRotation(
+            final @NotNull RCPPlayer player,
+            final float @NotNull [] sample
+    ) {
 
         if (!player.inCombat()) {
             return;
@@ -77,8 +88,9 @@ public final class FlowerModel implements AimModel {
                 history.length
         );
         final String name = player.name();
-        dispatcher.send(player, this, claim, token -> new HttpRequest(
-                FlowerCodec.encodeRequest(snapshot, name, token), Map.of("X-React-Observe", "1")
+        dispatcher.send(player, this, claim, token -> new InferencePayload(
+                FlowerCodec.encodeRequest(snapshot, name, token),
+                HEADERS
         ));
 
     }
@@ -94,6 +106,13 @@ public final class FlowerModel implements AimModel {
     public void resetPlayer(final @NotNull UUID player) {
 
         samples.remove(player);
+
+    }
+
+    @Override
+    public void shutdown() {
+
+        samples.clear();
 
     }
 

@@ -16,7 +16,7 @@ public final class TargetFeature {
     }
 
     public static void writeTo(
-            final @NotNull float[] features,
+            final float @NotNull [] features,
             final @NotNull AimSnapshot snapshot,
             final float fromYaw,
             final float fromPitch,
@@ -30,13 +30,10 @@ public final class TargetFeature {
         final double centerX = (snapshot.targetMinX() + snapshot.targetMaxX()) * 0.5;
         final double centerY = (snapshot.targetMinY() + snapshot.targetMaxY()) * 0.5;
         final double centerZ = (snapshot.targetMinZ() + snapshot.targetMaxZ()) * 0.5;
-        VectorFeature.TARGET_AIM_ANGLE.put(features, (float) minAngleToBox(snapshot, lookDirections(
-                snapshot.clientProtocol(),
-                fromYaw,
-                fromPitch,
-                yaw,
-                pitch
-        )));
+        VectorFeature.TARGET_AIM_ANGLE.put(
+                features,
+                (float) minAngleToBox(snapshot, fromYaw, fromPitch, yaw, pitch)
+        );
         VectorFeature.TARGET_REL_X.put(features, (float) (centerX - px));
         VectorFeature.TARGET_REL_Y.put(features, (float) (centerY - py));
         VectorFeature.TARGET_REL_Z.put(features, (float) (centerZ - pz));
@@ -44,46 +41,57 @@ public final class TargetFeature {
 
     }
 
-    private static double[] lookDirections(
-            final int clientProtocol,
+    private static double minAngleToBox(
+            final @NotNull AimSnapshot snapshot,
             final float lastYaw,
             final float lastPitch,
             final float yaw,
             final float pitch
     ) {
 
-        if (clientProtocol >= 0 && clientProtocol < 47) {
-            return writeLookVector(yaw, pitch, new double[3], 0);
-        }
-        final boolean includeLastRotation = clientProtocol < 0 || clientProtocol >= 107;
-        final double[] directions = new double[3 * (includeLastRotation ? 3 : 2)];
-        writeLookVector(yaw, pitch, directions, 0);
-        writeLookVector(lastYaw, pitch, directions, 3);
-        if (includeLastRotation) {
-            writeLookVector(lastYaw, lastPitch, directions, 6);
-        }
-        return directions;
-
-    }
-
-    private static double[] writeLookVector(final float yaw, final float pitch, final double[] out, final int offset) {
-
+        final int clientProtocol = snapshot.clientProtocol();
+        final int directions = clientProtocol >= 0 && clientProtocol < 47
+                ? 1
+                : (clientProtocol < 0 || clientProtocol >= 107 ? 3 : 2);
         final double pitchRadians = Math.toRadians(pitch);
-        final double yawRadians = Math.toRadians(-yaw);
         final double pitchCos = Math.cos(pitchRadians);
-        final double x = Math.sin(yawRadians) * pitchCos;
-        final double y = -Math.sin(pitchRadians);
-        final double z = Math.cos(yawRadians) * pitchCos;
-        final double length = Math.sqrt(x * x + y * y + z * z);
-        final double scale = length == 0.0 ? 1.0 : 1.0 / length;
-        out[offset] = x * scale;
-        out[offset + 1] = y * scale;
-        out[offset + 2] = z * scale;
-        return out;
+        final double pitchSin = -Math.sin(pitchRadians);
+        final double yawRadians = Math.toRadians(-yaw);
+        final double rawD0x = Math.sin(yawRadians) * pitchCos;
+        final double rawD0z = Math.cos(yawRadians) * pitchCos;
+        final double s0 = normalizeScale(rawD0x, pitchSin, rawD0z);
+        final double d0x = rawD0x * s0;
+        final double d0y = pitchSin * s0;
+        final double d0z = rawD0z * s0;
 
-    }
-
-    private static double minAngleToBox(final AimSnapshot snapshot, final double[] directions) {
+        double d1x = 0.0;
+        double d1y = 0.0;
+        double d1z = 0.0;
+        double d2x = 0.0;
+        double d2y = 0.0;
+        double d2z = 0.0;
+        if (directions >= 2) {
+            final double lastYawRadians = Math.toRadians(-lastYaw);
+            final double lastYawSin = Math.sin(lastYawRadians);
+            final double lastYawCos = Math.cos(lastYawRadians);
+            final double rawD1x = lastYawSin * pitchCos;
+            final double rawD1z = lastYawCos * pitchCos;
+            final double s1 = normalizeScale(rawD1x, pitchSin, rawD1z);
+            d1x = rawD1x * s1;
+            d1y = pitchSin * s1;
+            d1z = rawD1z * s1;
+            if (directions >= 3) {
+                final double lastPitchRadians = Math.toRadians(lastPitch);
+                final double lastPitchCos = Math.cos(lastPitchRadians);
+                final double rawD2x = lastYawSin * lastPitchCos;
+                final double rawD2y = -Math.sin(lastPitchRadians);
+                final double rawD2z = lastYawCos * lastPitchCos;
+                final double s2 = normalizeScale(rawD2x, rawD2y, rawD2z);
+                d2x = rawD2x * s2;
+                d2y = rawD2y * s2;
+                d2z = rawD2z * s2;
+            }
+        }
 
         double maxDot = Double.NEGATIVE_INFINITY;
         final double eyeY = snapshot.playerY() + snapshot.eyeHeight();
@@ -95,12 +103,23 @@ public final class TargetFeature {
             if (length < 0.001) {
                 return 0.0;
             }
-            for (int offset = 0; offset < directions.length; offset += 3) {
-                final double dot = directions[offset] * (dx / length)
-                        + directions[offset + 1] * (dy / length)
-                        + directions[offset + 2] * (dz / length);
-                if (dot > maxDot) {
-                    maxDot = dot;
+            final double nx = dx / length;
+            final double ny = dy / length;
+            final double nz = dz / length;
+            final double dot0 = d0x * nx + d0y * ny + d0z * nz;
+            if (dot0 > maxDot) {
+                maxDot = dot0;
+            }
+            if (directions >= 2) {
+                final double dot1 = d1x * nx + d1y * ny + d1z * nz;
+                if (dot1 > maxDot) {
+                    maxDot = dot1;
+                }
+                if (directions >= 3) {
+                    final double dot2 = d2x * nx + d2y * ny + d2z * nz;
+                    if (dot2 > maxDot) {
+                        maxDot = dot2;
+                    }
                 }
             }
         }
@@ -108,7 +127,21 @@ public final class TargetFeature {
 
     }
 
-    private static double pointX(final AimSnapshot snapshot, final int point) {
+    private static double normalizeScale(
+            final double x,
+            final double y,
+            final double z
+    ) {
+
+        final double length = Math.sqrt(x * x + y * y + z * z);
+        return length == 0.0 ? 1.0 : 1.0 / length;
+
+    }
+
+    private static double pointX(
+            final @NotNull AimSnapshot snapshot,
+            final int point
+    ) {
 
         if (point == 0) {
             return (snapshot.targetMinX() + snapshot.targetMaxX()) * 0.5;
@@ -117,7 +150,10 @@ public final class TargetFeature {
 
     }
 
-    private static double pointY(final AimSnapshot snapshot, final int point) {
+    private static double pointY(
+            final @NotNull AimSnapshot snapshot,
+            final int point
+    ) {
 
         if (point == 0) {
             return (snapshot.targetMinY() + snapshot.targetMaxY()) * 0.5;
@@ -126,7 +162,10 @@ public final class TargetFeature {
 
     }
 
-    private static double pointZ(final AimSnapshot snapshot, final int point) {
+    private static double pointZ(
+            final @NotNull AimSnapshot snapshot,
+            final int point
+    ) {
 
         if (point == 0) {
             return (snapshot.targetMinZ() + snapshot.targetMaxZ()) * 0.5;

@@ -17,6 +17,7 @@ public final class InferenceJsonCodec {
     private static final char[] HEX = "0123456789abcdef".toCharArray();
 
     private InferenceJsonCodec() {
+
     }
 
     public static @NotNull String writeObject(final @NotNull Map<String, ?> values) {
@@ -42,7 +43,7 @@ public final class InferenceJsonCodec {
 
     private static void appendObject(
             final @NotNull StringBuilder output,
-            final @NotNull Map<String, ?> values,
+            final @NotNull Map<?, ?> values,
             final int depth
     ) {
 
@@ -51,18 +52,45 @@ public final class InferenceJsonCodec {
 
         boolean first = true;
 
-        for (final Map.Entry<String, ?> entry : values.entrySet()) {
+        for (final Map.Entry<?, ?> entry : values.entrySet()) {
+            if (!(entry.getKey() instanceof String key)) {
+                throw new IllegalArgumentException("JSON object keys must be strings");
+            }
             if (!first) {
                 output.append(',');
             }
 
             first = false;
-            appendString(output, entry.getKey());
+            appendString(output, key);
             output.append(':');
             appendValue(output, entry.getValue(), depth + 1);
         }
 
         output.append('}');
+
+    }
+
+    private static void appendArray(
+            final @NotNull StringBuilder output,
+            final @NotNull List<?> values,
+            final int depth
+    ) {
+
+        checkDepth(depth);
+        output.append('[');
+
+        boolean first = true;
+
+        for (final Object element : values) {
+            if (!first) {
+                output.append(',');
+            }
+
+            first = false;
+            appendValue(output, element, depth + 1);
+        }
+
+        output.append(']');
 
     }
 
@@ -82,6 +110,10 @@ public final class InferenceJsonCodec {
             output.append(value);
         } else if (value instanceof Number number) {
             appendNumber(output, number);
+        } else if (value instanceof Map<?, ?> map) {
+            appendObject(output, map, depth);
+        } else if (value instanceof List<?> list) {
+            appendArray(output, list, depth);
         } else {
             throw new IllegalArgumentException(
                     "Unsupported inference JSON value type: " + value.getClass().getName()

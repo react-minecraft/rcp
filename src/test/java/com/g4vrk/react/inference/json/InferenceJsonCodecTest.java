@@ -2,6 +2,8 @@ package com.g4vrk.react.inference.json;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -56,4 +58,33 @@ class InferenceJsonCodecTest {
         );
 
     }
+
+    @Test
+    void writesNestedMapsAndListsSymmetrically() {
+
+        final Map<String, Object> source = new LinkedHashMap<>();
+        source.put("server", "Lobby");
+        source.put("models", List.of(
+                Map.of("id", "flower/baseline", "enabled", true),
+                Map.of("id", "vector/preview", "enabled", false)
+        ));
+        source.put("nullable", Arrays.asList("a", null, 3.5D));
+
+        final String json = InferenceJsonCodec.writeObject(source);
+        final Map<String, Object> parsed = InferenceJsonCodec.readObject(json);
+
+        assertEquals("Lobby", parsed.get("server"));
+        assertEquals(
+                List.of(
+                        Map.of("id", "flower/baseline", "enabled", true),
+                        Map.of("id", "vector/preview", "enabled", false)
+                ),
+                parsed.get("models")
+        );
+        assertEquals("a", ((List<?>) parsed.get("nullable")).get(0));
+        assertNull(((List<?>) parsed.get("nullable")).get(1));
+        assertEquals(3.5D, ((List<?>) parsed.get("nullable")).get(2));
+
+    }
+
 }

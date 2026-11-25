@@ -56,12 +56,6 @@ public final class AimSession {
 
     }
 
-    public synchronized @Nullable AimFrame[] snapshot(final int window) {
-
-        return history.latest(window);
-
-    }
-
     public synchronized void resize(final int size) {
 
         if (history.capacity() != size) {
@@ -70,7 +64,7 @@ public final class AimSession {
 
     }
 
-    public synchronized @Nullable AimFrame[] pollSnapshot(final int step) {
+    public synchronized AimFrame @Nullable [] pollSnapshot(final int step) {
 
         final List<AimFrame> frames = history.pollSnapshot(step);
         return frames == null ? null : frames.toArray(AimFrame[]::new);

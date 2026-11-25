@@ -22,7 +22,9 @@ final class PlayerInputGuard {
     }
 
     @NotNull Object lock(final @NotNull UUID player) {
+
         return locks[index(player)];
+
     }
 
     long generation(final @NotNull UUID player) {
@@ -37,7 +39,15 @@ final class PlayerInputGuard {
 
     }
 
-    private int index(final UUID player) {
+    void invalidateAll() {
+
+        for (final AtomicLong generation : generations) {
+            generation.incrementAndGet();
+        }
+
+    }
+
+    private int index(final @NotNull UUID player) {
 
         return (player.hashCode() & Integer.MAX_VALUE) % locks.length;
 

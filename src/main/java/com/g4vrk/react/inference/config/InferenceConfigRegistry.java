@@ -28,8 +28,10 @@ public record InferenceConfigRegistry(
             .step(root -> bracePlaceholders(root.node("link")))
             .build();
 
-    public static @NotNull InferenceConfigRegistry load(final @NotNull Path directory, final @NotNull Logger logger)
-            throws ConfigurateException {
+    public static @NotNull InferenceConfigRegistry load(
+            final @NotNull Path directory,
+            final @NotNull Logger logger
+    ) throws ConfigurateException {
 
         final String language = language();
         final ConnectionConfig connection = file(
@@ -56,13 +58,16 @@ public record InferenceConfigRegistry(
                 logger,
                 ConfigMigrationChain.none()
         );
-        validate(connection, flower, vector);
-        return new InferenceConfigRegistry(
-                connection,
-                flower,
-                vector,
-                file(ActionsConfig.class, directory, language, "actions.yml", logger, ACTIONS_MIGRATIONS)
+        final ActionsConfig actions = file(
+                ActionsConfig.class,
+                directory,
+                language,
+                "actions.yml",
+                logger,
+                ACTIONS_MIGRATIONS
         );
+        validate(connection, flower, vector, actions);
+        return new InferenceConfigRegistry(connection, flower, vector, actions);
 
     }
 
@@ -72,7 +77,8 @@ public record InferenceConfigRegistry(
             final @NotNull VectorConfig vector
     ) {
 
-        if (connection.timeouts() == null
+        if (connection == null
+                || connection.timeouts() == null
                 || connection.timeouts().connect() == null
                 || connection.timeouts().connect().isNegative()
                 || connection.timeouts().connect().isZero()
@@ -81,22 +87,64 @@ public record InferenceConfigRegistry(
                 || connection.timeouts().call().isZero()) {
             throw new IllegalArgumentException("connection.yml timeouts must be positive durations");
         }
-        if (flower.step() < 1) {
+        if (flower == null || flower.step() < 1) {
             throw new IllegalArgumentException("models/flower.yml step must be at least 1");
         }
-        if (vector.combatTicks() < 1L) {
+        if (vector == null || vector.combatTicks() < 1L) {
             throw new IllegalArgumentException("models/vector.yml combat-ticks must be at least 1");
         }
 
     }
 
+    public static void validate(
+            final @NotNull ConnectionConfig connection,
+            final @NotNull FlowerConfig flower,
+            final @NotNull VectorConfig vector,
+            final @NotNull ActionsConfig actions
+    ) {
+
+        validate(connection, flower, vector);
+        if (actions == null) {
+            throw new IllegalArgumentException("actions.yml must not be null");
+        }
+        final ActionsConfig.Link link = actions.link();
+        if (link == null
+                || link.checking() == null
+                || link.requesting() == null
+                || link.open() == null
+                || link.linked() == null
+                || link.failed() == null
+                || link.status() == null) {
+            throw new IllegalArgumentException("actions.yml link actions must not be null");
+        }
+        final ActionsConfig.TextSet texts = actions.texts();
+        if (texts == null
+                || texts.notLinked() == null
+                || texts.unavailable() == null
+                || texts.modelEnabled() == null
+                || texts.modelDisabled() == null
+                || texts.separator() == null
+                || texts.none() == null) {
+            throw new IllegalArgumentException("actions.yml texts entries must not be null");
+        }
+        final ActionsConfig.ReasonSet reasons = texts.reasons();
+        if (reasons == null
+                || reasons.notLinked() == null
+                || reasons.replaced() == null
+                || reasons.expired() == null
+                || reasons.http() == null) {
+            throw new IllegalArgumentException("actions.yml texts.reasons entries must not be null");
+        }
+
+    }
+
     private static <T> T file(
-            final Class<T> type,
-            final Path directory,
-            final String language,
-            final String name,
-            final Logger logger,
-            final ConfigMigrationChain migrations
+            final @NotNull Class<T> type,
+            final @NotNull Path directory,
+            final @NotNull String language,
+            final @NotNull String name,
+            final @NotNull Logger logger,
+            final @NotNull ConfigMigrationChain migrations
     ) throws ConfigurateException {
 
         return ConfigFile.builder(type)
@@ -112,7 +160,7 @@ public record InferenceConfigRegistry(
     /**
      * Rewrites every {@code %name%} below the node as {@code {name}}, the placeholder form since version 2.
      */
-    private static void bracePlaceholders(final ConfigurationNode node) throws SerializationException {
+    private static void bracePlaceholders(final @NotNull ConfigurationNode node) throws SerializationException {
 
         for (final ConfigurationNode child : node.isList() ? node.childrenList() : node.childrenMap().values()) {
             bracePlaceholders(child);
@@ -123,7 +171,7 @@ public record InferenceConfigRegistry(
 
     }
 
-    private static String language() {
+    private static @NotNull String language() {
 
         final String language = System.getProperty("user.language", "ru").toLowerCase(Locale.ROOT);
         return language.equals("en") ? "en" : "ru";

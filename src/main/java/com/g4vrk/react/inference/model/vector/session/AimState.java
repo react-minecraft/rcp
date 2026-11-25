@@ -41,15 +41,6 @@ public final class AimState {
 
     }
 
-    public void resetVector() {
-
-        synchronized (lock) {
-            aimModes.reset();
-            targetEntityId = -1;
-        }
-
-    }
-
     public @NotNull AimFrame capture(
             final @Nullable AimSnapshot snapshot,
             final float rawYaw,

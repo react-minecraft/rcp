@@ -1,10 +1,6 @@
 package com.g4vrk.react.inference;
 
-import com.g4vrk.functionalActions.defaults.DefaultActionSet;
 import com.g4vrk.functionalActions.parser.ActionParser;
-import com.g4vrk.functionalActions.parser.impl.SimpleActionParser;
-import com.g4vrk.functionalActions.registry.ActionRegistry;
-import com.g4vrk.functionalActions.registry.impl.SimpleActionRegistry;
 import com.g4vrk.react.api.rcp.environment.RCPEnvironment;
 import com.g4vrk.react.api.rcp.provider.RCPProvider;
 import com.g4vrk.react.inference.api.InferenceApi;
@@ -13,7 +9,6 @@ import com.g4vrk.react.inference.config.InferenceConfigRegistry;
 import com.g4vrk.react.inference.model.AimModelRegistry;
 import com.g4vrk.react.inference.service.ConnectionService;
 import com.g4vrk.react.inference.service.ModelService;
-import com.g4vrk.text.LegacySerializerRegistry;
 import java.util.List;
 import net.kyori.adventure.audience.Audience;
 import org.jetbrains.annotations.NotNull;
@@ -37,13 +32,7 @@ public final class ReactInferenceRCP extends RCPProvider {
 
         super(environment);
         this.environment = environment;
-        final ActionRegistry<Audience> registry = new SimpleActionRegistry<>(true);
-        DefaultActionSet.Adventure.registerDefaults(
-                registry,
-                LegacySerializerRegistry.INSTANCE.universalSerializer()::serialize,
-                ";"
-        );
-        this.actionParser = new SimpleActionParser<>(registry);
+        this.actionParser = environment.actions();
 
     }
 
@@ -100,6 +89,9 @@ public final class ReactInferenceRCP extends RCPProvider {
     public void onDisable() {
 
         instance = null;
+        if (models != null) {
+            models.shutdown();
+        }
         if (connection != null) {
             connection.shutdown();
         }

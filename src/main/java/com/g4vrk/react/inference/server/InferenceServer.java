@@ -3,8 +3,7 @@ package com.g4vrk.react.inference.server;
 import com.g4vrk.react.api.rcp.RCPAPI;
 import com.g4vrk.react.inference.config.ActionsConfig;
 import com.g4vrk.react.inference.http.LimitedBodyHandler;
-import com.g4vrk.react.inference.http.model.HttpRequest;
-import com.g4vrk.react.inference.json.InferenceJsonCodec;
+import com.g4vrk.react.inference.http.model.InferencePayload;
 import com.g4vrk.react.inference.link.Credential;
 import com.g4vrk.react.inference.link.RequestSigner;
 import com.g4vrk.react.inference.model.ModelId;
@@ -13,14 +12,13 @@ import java.lang.reflect.Method;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyPair;
 import java.time.Duration;
-import java.util.Collections;
 import java.util.EnumMap;
-import java.util.EnumSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -28,23 +26,21 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Consumer;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 
 /**
- * The connection to the React site: model calls, the enabled models and linking this server.
- * <p>
- * Account requests carry the fingerprint and, once linked, the access token as a Bearer token and an Ed25519
- * signature of the request. Model requests carry the access token inside the FlatBuffers body.
+ * The HTTP transport and model-inference client to the React site.
+ *
+ * <p>Account endpoints are delegated to {@link AccountClient}. Model requests carry the access
+ * token inside the FlatBuffers body.</p>
  */
 public final class InferenceServer {
 
     public static final String BASE_URL = RCPAPI.API_URL;
 
     private static final String MODEL_PATH = "/api/v2/inference/";
-    private static final String CHECK_PATH = "/api/v1/auth/check";
     private static final String RCP_VERSION_HEADER = "X-React-RCP-Version";
     private static final String PLUGIN_VERSION_HEADER = "X-Plugin-Version";
     private static final long MODEL_REFRESH_NANOS = TimeUnit.SECONDS.toNanos(60L);
@@ -58,7 +54,7 @@ public final class InferenceServer {
     private final String rcpVersion;
     private final String pluginVersion;
     private final Map<ModelId, URI> modelUrls;
-    private final ActionsConfig.ReasonSet reasons;
+    private final AccountClient account;
 
     private volatile @Nullable Credential credential;
     private volatile Set<ModelId> enabledModels = Set.of();
@@ -66,12 +62,17 @@ public final class InferenceServer {
 
     private final AtomicBoolean closed = new AtomicBoolean();
     private final AtomicLong requestEpoch = new AtomicLong();
-    private final AtomicLong deviceLogin = new AtomicLong();
     private final Set<CompletableFuture<?>> inFlight = ConcurrentHashMap.newKeySet();
 
     /**
-     * @param credential the credential from {@code .link}, or null while the server is not linked
-     * @param reasons    what a failed check or link reports
+     * @param logger         logger for connection warnings
+     * @param connectTimeout HTTP connect timeout
+     * @param callTimeout    HTTP request timeout
+     * @param credential     the credential from {@code .link}, or null while the server is not linked
+     * @param fingerprint    hashed server identity
+     * @param rcpVersion     RCP version header value
+     * @param pluginVersion  React plugin version header value
+     * @param reasons        what a failed check or link reports
      */
     public InferenceServer(
             final @NotNull Logger logger,
@@ -87,7 +88,6 @@ public final class InferenceServer {
         this.logger = logger;
         this.callTimeout = callTimeout;
         this.credential = credential;
-        this.reasons = reasons;
         this.fingerprint = fingerprint;
         this.rcpVersion = rcpVersion;
         this.pluginVersion = pluginVersion;
@@ -101,6 +101,7 @@ public final class InferenceServer {
                 .followRedirects(HttpClient.Redirect.NEVER)
                 .build();
         this.modelUrls = modelUrls();
+        this.account = new AccountClient(this, logger, fingerprint, reasons);
 
     }
 
@@ -109,6 +110,12 @@ public final class InferenceServer {
         return baseUrl.regionMatches(true, 0, "http:", 0, 5)
                 ? HttpClient.Version.HTTP_1_1
                 : HttpClient.Version.HTTP_2;
+
+    }
+
+    public @NotNull AccountClient account() {
+
+        return account;
 
     }
 
@@ -137,15 +144,11 @@ public final class InferenceServer {
     }
 
     /**
-     * Runs the final publication of an answer unless the server shut down or reset since the request.
-     * <p>
-     * Synchronized with {@link #shutdown()}, so nothing is published after it returns.
+     * Lock-free check whether this server is still open and on the given epoch.
      */
-    public synchronized void publishIfCurrent(final long epoch, final @NotNull Runnable publication) {
+    public boolean isCurrent(final long epoch) {
 
-        if (!closed.get() && requestEpoch.get() == epoch) {
-            publication.run();
-        }
+        return !closed.get() && requestEpoch.get() == epoch;
 
     }
 
@@ -175,262 +178,28 @@ public final class InferenceServer {
 
     }
 
-    private void refreshModelsIfDue() {
-
-        final long now = System.nanoTime();
-        final long next = nextModelRefresh.get();
-        if (now - next < 0L || !nextModelRefresh.compareAndSet(next, now + MODEL_REFRESH_NANOS)) {
-            return;
-        }
-        if (credential == null || closed.get()) {
-            enabledModels = Set.of();
-            return;
-        }
-        final long epoch = requestEpoch.get();
-        try {
-            get(CHECK_PATH).whenComplete((response, failure) -> {
-                if (failure != null) {
-                    /*
-                     * A network failure keeps the last known models instead of stopping every check.
-                     */
-                    logger.debug("Could not refresh the enabled models", failure);
-                    return;
-                }
-                if (response.statusCode() == 401 || response.statusCode() == 403) {
-                    publishIfCurrent(epoch, () -> {
-                        enabledModels = Set.of();
-                        logger.warn("The site refused this server's link: link it again with /react link");
-                    });
-                    return;
-                }
-                if (!isSuccessful(response)) {
-                    return;
-                }
-                try {
-                    final Set<ModelId> models = readEnabledModels(readJson(response));
-                    publishIfCurrent(epoch, () -> enabledModels = models);
-                } catch (final RuntimeException exception) {
-                    logger.debug("Could not read the enabled models", exception);
-                }
-            });
-        } catch (final RuntimeException exception) {
-            logger.debug("Could not refresh the enabled models", exception);
-        }
-
-    }
-
-    /**
-     * The outcome of {@code /react link check}.
-     *
-     * @param models  every model the account can use, mapped to whether it is enabled
-     * @param problem why the check failed, or null
-     */
-    public record ConnectionState(String server, Map<ModelId, Boolean> models, @Nullable String problem) {
-
-        static ConnectionState failed(final String problem) {
-
-            return new ConnectionState("", Map.of(), problem);
-
-        }
-
-    }
-
-    /**
-     * Asks the site about this server's link right now and updates the enabled models.
-     */
-    public @NotNull CompletableFuture<ConnectionState> checkConnection() {
-
-        if (credential == null) {
-            return CompletableFuture.completedFuture(ConnectionState.failed(reasons.notLinked()));
-        }
-        final long epoch = requestEpoch.get();
-        return get(CHECK_PATH).handle((response, failure) -> {
-            if (failure != null) {
-                return ConnectionState.failed(String.valueOf(failure.getMessage()));
-            }
-            try {
-                final Map<String, Object> json = readJson(response);
-                if (!isSuccessful(response)) {
-                    return ConnectionState.failed(detail(json, response));
-                }
-                final Set<ModelId> models = readEnabledModels(json);
-                publishIfCurrent(epoch, () -> {
-                    enabledModels = models;
-                    nextModelRefresh.set(System.nanoTime() + MODEL_REFRESH_NANOS);
-                });
-                return new ConnectionState(String.valueOf(json.get("server")), readModelStates(json), null);
-            } catch (final RuntimeException exception) {
-                return ConnectionState.failed(isSuccessful(response)
-                        ? String.valueOf(exception.getMessage()) : http(response));
-            }
-        });
-
-    }
-
-    /**
-     * The outcome of a link attempt.
-     *
-     * @param credential the new credential, or null when the site did not accept the link
-     * @param models     every model the account can use, mapped to whether it is enabled
-     */
-    public record ConnectResult(
-            @Nullable Credential credential,
-            String server,
-            Map<ModelId, Boolean> models,
-            String detail,
-            long attempt
-    ) {
-
-        static ConnectResult refused(final String detail) {
-
-            return new ConnectResult(null, "", Map.of(), detail, -1L);
-
-        }
-
-    }
-
-    /**
-     * Exchanges a code from the server's page on the site for this server's credential.
-     */
-    public @NotNull CompletableFuture<ConnectResult> connect(final @NotNull String code) {
-
-        final long attempt = beginLogin();
-        final KeyPair keys = RequestSigner.newKeyPair();
-        return post(
-                "/api/v1/auth/connect",
-                Map.of(
-                        "code",
-                        code,
-                        "fingerprint",
-                        fingerprint,
-                        "public_key",
-                        RequestSigner.publicKey(keys.getPublic())
-                )
-        )
-                .thenApply(response -> attempt == deviceLogin.get() && !closed.get()
-                        ? connectResult(response, keys, attempt) : ConnectResult.refused(reasons.replaced()));
-
-    }
-
-    /**
-     * The link {@code /react link} prints: the owner opens it and approves the server.
-     */
-    public record DeviceLink(String url, String code, long expiresInSeconds) {
-    }
-
-    /**
-     * Starts a link login and completes once the owner answers on the site.
-     * <p>
-     * A newer login replaces the one still waiting.
-     *
-     * @param onLink receives the link to show the owner
-     */
-    public @NotNull CompletableFuture<ConnectResult> connectWithLink(final @NotNull Consumer<DeviceLink> onLink) {
-
-        final long attempt = beginLogin();
-        final KeyPair keys = RequestSigner.newKeyPair();
-        return post("/api/v1/auth/device", Map.of("fingerprint", fingerprint)).thenCompose(response -> {
-            if (attempt != deviceLogin.get() || closed.get()) {
-                return CompletableFuture.completedFuture(ConnectResult.refused(reasons.replaced()));
-            }
-            final Map<String, Object> json;
-            try {
-                json = readJson(response);
-            } catch (final RuntimeException exception) {
-                return CompletableFuture.completedFuture(ConnectResult.refused(http(response)));
-            }
-            if (!isSuccessful(response) || !(json.get("device_code") instanceof String deviceCode)
-                    || !(json.get("expires_in") instanceof Number expiresIn)) {
-                return CompletableFuture.completedFuture(ConnectResult.refused(detail(json, response)));
-            }
-            final long interval = json.get("interval") instanceof Number number ? Math.max(1L, number.longValue()) : 3L;
-            onLink.accept(new DeviceLink(
-                    String.valueOf(json.get("verification_uri_complete")),
-                    String.valueOf(json.get("user_code")),
-                    expiresIn.longValue()
-            ));
-            final Map<String, Object> body = Map.of(
-                    "device_code",
-                    deviceCode,
-                    "fingerprint",
-                    fingerprint,
-                    "public_key",
-                    RequestSigner.publicKey(keys.getPublic())
-            );
-            return pollDeviceLogin(
-                    attempt,
-                    body,
-                    keys,
-                    interval,
-                    System.nanoTime() + TimeUnit.SECONDS.toNanos(Math.max(1L, expiresIn.longValue()))
-            );
-        });
-
-    }
-
-    private CompletableFuture<ConnectResult> pollDeviceLogin(
-            final long attempt,
-            final Map<String, Object> body,
-            final KeyPair keys,
-            final long intervalSeconds,
-            final long deadlineNanos
-    ) {
-
-        if (attempt != deviceLogin.get() || closed.get()) {
-            return CompletableFuture.completedFuture(ConnectResult.refused(reasons.replaced()));
-        }
-        if (System.nanoTime() - deadlineNanos > 0L) {
-            return CompletableFuture.completedFuture(ConnectResult.refused(reasons.expired()));
-        }
-        return CompletableFuture.runAsync(() -> { }, CompletableFuture.delayedExecutor(intervalSeconds, TimeUnit.SECONDS))
-                .thenCompose(ignored -> {
-                    if (attempt != deviceLogin.get() || closed.get()) {
-                        return CompletableFuture.completedFuture(null);
-                    }
-                    return post("/api/v1/auth/device/token", body);
-                })
-                .thenCompose(response -> response == null || attempt != deviceLogin.get() || closed.get()
-                        ? CompletableFuture.completedFuture(ConnectResult.refused(reasons.replaced()))
-                        : response.statusCode() == 202
-                        ? pollDeviceLogin(attempt, body, keys, intervalSeconds, deadlineNanos)
-                        : CompletableFuture.completedFuture(connectResult(response, keys, attempt)));
-
-    }
-
-    public synchronized boolean isCurrentLogin(final long attempt) {
-
-        return !closed.get() && attempt == deviceLogin.get();
-
-    }
-
-    private synchronized long beginLogin() {
-
-        return deviceLogin.incrementAndGet();
-
-    }
-
     /**
      * Sends one model request; its answer is capped in size and the call is cancelled on shutdown.
      */
     public @NotNull CompletableFuture<HttpResponse<byte[]>> callAsync(
-            final @NotNull HttpRequest httpRequest,
+            final @NotNull InferencePayload payload,
             final @NotNull ModelId model
     ) {
 
         if (closed.get()) {
             throw new IllegalStateException("The inference client is closed");
         }
-        final java.net.http.HttpRequest.Builder builder = java.net.http.HttpRequest.newBuilder(modelUrls.get(model))
-                .POST(java.net.http.HttpRequest.BodyPublishers.ofByteArray(httpRequest.getBody()))
-                .header("Content-Type", HttpRequest.FLATBUFFERS)
-                .header("Accept", HttpRequest.FLATBUFFERS)
+        final HttpRequest.Builder builder = HttpRequest.newBuilder(modelUrls.get(model))
+                .POST(BodyPublishers.ofByteArray(payload.body()))
+                .header("Content-Type", InferencePayload.FLATBUFFERS)
+                .header("Accept", InferencePayload.FLATBUFFERS)
                 /*
                  * Several models run side by side, so the request names its own model.
                  */
                 .header("X-React-Player-Scoped", "true")
                 .header(RCP_VERSION_HEADER, rcpVersion)
                 .header(PLUGIN_VERSION_HEADER, pluginVersion);
-        httpRequest.getHeaders().forEach(builder::header);
+        payload.headers().forEach(builder::header);
 
         final CompletableFuture<HttpResponse<byte[]>> call = client.sendAsync(withTimeout(builder).build(), BODY_HANDLER);
         inFlight.add(call);
@@ -448,7 +217,7 @@ public final class InferenceServer {
 
         closed.set(true);
         requestEpoch.incrementAndGet();
-        deviceLogin.incrementAndGet();
+        account.cancelPendingLogins();
         inFlight.forEach(call -> call.cancel(true));
         inFlight.clear();
         if (HTTP_CLIENT_SHUTDOWN_NOW == null) {
@@ -462,34 +231,54 @@ public final class InferenceServer {
 
     }
 
-    private CompletableFuture<HttpResponse<byte[]>> get(final String path) {
+    boolean isClosed() {
 
-        return sendAccountRequest("GET", path, new byte[0]);
-
-    }
-
-    private CompletableFuture<HttpResponse<byte[]>> post(final String path, final Map<String, Object> json) {
-
-        return sendAccountRequest("POST", path, InferenceJsonCodec.writeObject(json).getBytes(StandardCharsets.UTF_8));
+        return closed.get();
 
     }
 
-    private CompletableFuture<HttpResponse<byte[]>> sendAccountRequest(
-            final String method,
-            final String path,
-            final byte[] body
+    synchronized void updateEnabledModelsIfCurrent(final long epoch, final @NotNull Set<ModelId> models) {
+
+        if (isCurrent(epoch)) {
+            enabledModels = models;
+        }
+
+    }
+
+    synchronized void markModelRefreshSuccess(final long epoch, final @NotNull Set<ModelId> models) {
+
+        if (isCurrent(epoch)) {
+            enabledModels = models;
+            nextModelRefresh.set(System.nanoTime() + MODEL_REFRESH_NANOS);
+        }
+
+    }
+
+    synchronized void clearEnabledModelsIfCurrent(final long epoch, final @NotNull Runnable onCleared) {
+
+        if (isCurrent(epoch)) {
+            enabledModels = Set.of();
+            onCleared.run();
+        }
+
+    }
+
+    @NotNull CompletableFuture<HttpResponse<byte[]>> sendAccountRequest(
+            final @NotNull String method,
+            final @NotNull String path,
+            final byte @NotNull [] body
     ) {
 
         if (closed.get()) {
             return CompletableFuture.failedFuture(new IllegalStateException("The inference client is closed"));
         }
-        final java.net.http.HttpRequest.Builder builder = java.net.http.HttpRequest.newBuilder(apiUrl(path))
+        final HttpRequest.Builder builder = HttpRequest.newBuilder(apiUrl(path))
                 .header(RCP_VERSION_HEADER, rcpVersion)
                 .header(PLUGIN_VERSION_HEADER, pluginVersion)
                 .header(RequestSigner.FINGERPRINT_HEADER, fingerprint);
         if (method.equals("POST")) {
             builder.header("Content-Type", "application/json; charset=utf-8")
-                    .POST(java.net.http.HttpRequest.BodyPublishers.ofByteArray(body));
+                    .POST(BodyPublishers.ofByteArray(body));
         } else {
             builder.GET();
         }
@@ -516,94 +305,34 @@ public final class InferenceServer {
 
     }
 
-    private java.net.http.HttpRequest.Builder withTimeout(final java.net.http.HttpRequest.Builder builder) {
+    private void refreshModelsIfDue() {
+
+        final long now = System.nanoTime();
+        final long next = nextModelRefresh.get();
+        if (now - next < 0L || !nextModelRefresh.compareAndSet(next, now + MODEL_REFRESH_NANOS)) {
+            return;
+        }
+        if (credential == null || closed.get()) {
+            enabledModels = Set.of();
+            return;
+        }
+        account.refreshModels(requestEpoch.get());
+
+    }
+
+    private @NotNull HttpRequest.Builder withTimeout(final @NotNull HttpRequest.Builder builder) {
 
         return callTimeout.isZero() || callTimeout.isNegative() ? builder : builder.timeout(callTimeout);
 
     }
 
-    private ConnectResult connectResult(final HttpResponse<byte[]> response, final KeyPair keys, final long attempt) {
-
-        final Map<String, Object> result;
-        try {
-            result = readJson(response);
-        } catch (final RuntimeException exception) {
-            return ConnectResult.refused(http(response));
-        }
-        if (!isSuccessful(response) || !(result.get("api_key") instanceof String accessToken)) {
-            return ConnectResult.refused(detail(result, response));
-        }
-        return new ConnectResult(
-                new Credential(accessToken, keys),
-                String.valueOf(result.get("server")),
-                readModelStates(result),
-                "",
-                attempt
-        );
-
-    }
-
-    private String detail(final Map<String, Object> json, final HttpResponse<?> response) {
-
-        final Object value = json.get("detail");
-        return value != null ? String.valueOf(value) : http(response);
-
-    }
-
-    private String http(final HttpResponse<?> response) {
-
-        return reasons.http().replace("{status}", Integer.toString(response.statusCode()));
-
-    }
-
-    private static Set<ModelId> readEnabledModels(final Map<String, Object> json) {
-
-        final EnumSet<ModelId> models = EnumSet.noneOf(ModelId.class);
-        readModelStates(json).forEach((model, enabled) -> {
-            if (enabled) {
-                models.add(model);
-            }
-        });
-        return Collections.unmodifiableSet(models);
-
-    }
-
-    private static Map<ModelId, Boolean> readModelStates(final Map<String, Object> json) {
-
-        final Map<ModelId, Boolean> states = new EnumMap<>(ModelId.class);
-        if (json.get("models") instanceof List<?> items) {
-            for (final Object item : items) {
-                if (item instanceof Map<?, ?> entry) {
-                    final ModelId model = ModelId.fromIdentity(String.valueOf(entry.get("id")));
-                    if (model != null) {
-                        states.put(model, Boolean.TRUE.equals(entry.get("enabled")));
-                    }
-                }
-            }
-        }
-        return states;
-
-    }
-
-    private static Map<String, Object> readJson(final HttpResponse<byte[]> response) {
-
-        return InferenceJsonCodec.readObject(new String(response.body(), StandardCharsets.UTF_8));
-
-    }
-
-    private static boolean isSuccessful(final HttpResponse<?> response) {
-
-        return response.statusCode() >= 200 && response.statusCode() < 300;
-
-    }
-
-    private static URI apiUrl(final String path) {
+    private static @NotNull URI apiUrl(final @NotNull String path) {
 
         return URI.create(BASE_URL + path);
 
     }
 
-    private static Map<ModelId, URI> modelUrls() {
+    private static @NotNull Map<ModelId, URI> modelUrls() {
 
         final Map<ModelId, URI> urls = new EnumMap<>(ModelId.class);
         for (final ModelId model : ModelId.values()) {
@@ -618,7 +347,7 @@ public final class InferenceServer {
 
     }
 
-    private static Method findShutdownMethod() {
+    private static @Nullable Method findShutdownMethod() {
 
         try {
             return HttpClient.class.getMethod("shutdownNow");

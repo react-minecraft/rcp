@@ -90,8 +90,14 @@ class LinkTest {
     @Test
     void fingerprintIsHexSha256() {
 
-        assertEquals("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", ServerFingerprint.hash("abc"));
-        assertNotEquals(ServerFingerprint.hash("a"), ServerFingerprint.hash("b"));
+        assertEquals(
+                "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+                HexCodec.encode(ServerFingerprint.sha256("abc"))
+        );
+        assertNotEquals(
+                HexCodec.encode(ServerFingerprint.sha256("a")),
+                HexCodec.encode(ServerFingerprint.sha256("b"))
+        );
 
     }
 

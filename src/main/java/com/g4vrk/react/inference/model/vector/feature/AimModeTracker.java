@@ -1,14 +1,13 @@
 package com.g4vrk.react.inference.model.vector.feature;
 
 import com.g4vrk.react.inference.model.vector.model.VectorFeature;
+import com.g4vrk.react.inference.model.vector.util.MouseMath;
 import java.util.ArrayDeque;
 import java.util.HashMap;
 import java.util.Map;
 import org.jetbrains.annotations.NotNull;
 
 public final class AimModeTracker {
-
-    private static final double MINIMUM_DIVISOR = (double) ((float) Math.pow(0.2f, 3.0)) * 8.0 * 0.15 - 0.001;
 
     private final RunningMode yawMode = new RunningMode();
     private final RunningMode pitchMode = new RunningMode();
@@ -46,7 +45,7 @@ public final class AimModeTracker {
 
     }
 
-    public void writeTo(final @NotNull float[] features) {
+    public void writeTo(final float @NotNull [] features) {
 
         final boolean modeYawValid = yawMode.peakCount > 15;
         final boolean modePitchValid = pitchMode.peakCount > 15;
@@ -75,7 +74,7 @@ public final class AimModeTracker {
     private void trackYaw(final float fromYaw, final float toYaw, final double yawAbs) {
 
         final double divisor = gcd(yawAbs, lastYawDelta);
-        if (yawAbs <= 0.0 || yawAbs >= 5.0 || divisor <= MINIMUM_DIVISOR) {
+        if (yawAbs <= 0.0 || yawAbs >= 5.0 || divisor <= MouseMath.MINIMUM_DIVISOR) {
             return;
         }
         final double yawUlp = Math.ulp(Math.max(Math.abs(fromYaw), Math.abs(toYaw)));
@@ -92,7 +91,7 @@ public final class AimModeTracker {
     private void trackPitch(final double pitchAbs) {
 
         final double divisor = gcd(pitchAbs, lastPitchDelta);
-        if (pitchAbs <= 0.0 || pitchAbs >= 5.0 || divisor <= MINIMUM_DIVISOR) {
+        if (pitchAbs <= 0.0 || pitchAbs >= 5.0 || divisor <= MouseMath.MINIMUM_DIVISOR) {
             return;
         }
         if (lastPitchDelta != 0.0) {
@@ -114,7 +113,7 @@ public final class AimModeTracker {
             a = b;
             b = swap;
         }
-        while (b > MINIMUM_DIVISOR) {
+        while (b > MouseMath.MINIMUM_DIVISOR) {
             final double remainder = a - Math.floor(a / b) * b;
             a = b;
             b = remainder;

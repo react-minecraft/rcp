@@ -13,9 +13,6 @@ import com.g4vrk.react.inference.model.vector.session.AimSession;
 import com.g4vrk.react.inference.model.vector.session.AimState;
 import com.g4vrk.schedula.task.TickSchedule;
 import com.g4vrk.schedula.task.scheduler.TaskScheduler;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
-
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -23,6 +20,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Turns React's platform-neutral attack and rotation callbacks into Vector aim frames.
@@ -40,6 +39,7 @@ public final class AimStreamService {
     private final CopyOnWriteArrayList<Subscription> subscriptions = new CopyOnWriteArrayList<>();
     private final BiConsumer<RCPPlayer, AimSession> onFrame;
     private volatile long combatTicks;
+    private volatile boolean closed;
 
     public AimStreamService(
             final @NotNull RCPEnvironment environment,
@@ -86,12 +86,18 @@ public final class AimStreamService {
 
     }
 
-    public void onAttack(final @NotNull RCPPlayer player, final int targetEntityId) {
+    public void onAttack(
+            final @NotNull RCPPlayer player,
+            final int targetEntityId
+    ) {
 
+        if (closed) {
+            return;
+        }
         final UUID uuid = player.uniqueId();
         final long generation = dispatcher.inputGeneration(uuid);
         synchronized (dispatcher.playerLock(uuid)) {
-            if (generation != dispatcher.inputGeneration(uuid)) {
+            if (closed || generation != dispatcher.inputGeneration(uuid)) {
                 return;
             }
             final AimSession data = claimPlayerData(uuid);
@@ -107,9 +113,12 @@ public final class AimStreamService {
 
     }
 
-    public void onRotation(final @NotNull RCPPlayer player, final float @NotNull [] sample) {
+    public void onRotation(
+            final @NotNull RCPPlayer player,
+            final float @NotNull [] sample
+    ) {
 
-        if (!player.inCombat()) {
+        if (closed || !player.inCombat()) {
             return;
         }
         final UUID uuid = player.uniqueId();
@@ -117,13 +126,12 @@ public final class AimStreamService {
         final AimSession data;
         final AimState state;
         synchronized (dispatcher.playerLock(uuid)) {
-            if (generation != dispatcher.inputGeneration(uuid)) {
+            if (closed || generation != dispatcher.inputGeneration(uuid)) {
                 return;
             }
             data = claimPlayerData(uuid);
             synchronized (data) {
                 state = data.activate();
-                data.combatActivity.extend(combatTicks);
             }
         }
         final float yaw = RotationSample.yaw(sample, 0);
@@ -131,7 +139,11 @@ public final class AimStreamService {
         if (!Float.isFinite(yaw) || !Float.isFinite(pitch)) {
             return;
         }
-        scheduler.scheduleEntity(player.platform(), () -> capture(player, data, state, yaw, pitch), CAPTURE_SCHEDULE);
+        scheduler.scheduleEntity(
+                player.platform(),
+                () -> capture(player, data, state, generation, yaw, pitch),
+                CAPTURE_SCHEDULE
+        );
 
     }
 
@@ -140,9 +152,33 @@ public final class AimStreamService {
             final @NotNull BiConsumer<RCPPlayer, AimFrame> consumer
     ) {
 
+        if (closed) {
+            return () -> { };
+        }
         final Subscription subscription = new Subscription(interested, consumer);
         subscriptions.add(subscription);
+        if (closed) {
+            subscriptions.remove(subscription);
+            return () -> { };
+        }
         return () -> subscriptions.remove(subscription);
+
+    }
+
+    public void shutdown() {
+
+        closed = true;
+        subscriptions.clear();
+        for (final UUID uuid : List.copyOf(playerData.keySet())) {
+            synchronized (dispatcher.playerLock(uuid)) {
+                dispatcher.invalidateInput(uuid);
+                final AimSession removed = playerData.remove(uuid);
+                if (removed != null) {
+                    removed.reset();
+                }
+            }
+        }
+        playerData.clear();
 
     }
 
@@ -150,16 +186,21 @@ public final class AimStreamService {
             final @NotNull RCPPlayer player,
             final @NotNull AimSession data,
             final @NotNull AimState state,
+            final long generation,
             final float yaw,
             final float pitch
     ) {
 
+        if (closed) {
+            return;
+        }
         final UUID uuid = player.uniqueId();
-        final long generation = dispatcher.inputGeneration(uuid);
         final AimFrame frame;
+        final boolean combatActive;
         synchronized (dispatcher.playerLock(uuid)) {
             synchronized (data) {
-                if (generation != dispatcher.inputGeneration(uuid)
+                if (closed
+                        || generation != dispatcher.inputGeneration(uuid)
                         || !player.platform().online()
                         || playerData.get(uuid) != data
                         || !data.isCurrent(state)) {
@@ -167,7 +208,8 @@ public final class AimStreamService {
                 }
                 final AimSnapshot snapshot = environment.platform().aimSnapshot(player.platform(), state.targetEntityId());
                 frame = state.capture(snapshot, yaw, pitch);
-                if (!data.combatActivity.isActive()) {
+                combatActive = data.combatActivity.isActive();
+                if (!combatActive) {
                     data.clearHistory();
                     return;
                 }
@@ -175,18 +217,24 @@ public final class AimStreamService {
                 onFrame.accept(player, data);
             }
         }
+        if (closed) {
+            return;
+        }
         events.post(new ModelFrameEvent(
                 "vector",
                 player.uniqueId(),
                 DATASET_COLUMNS,
                 frame.datasetFeatures(),
-                player.inCombat()
+                combatActive
         ));
         notifySubscribers(player, frame);
 
     }
 
-    private void notifySubscribers(final @NotNull RCPPlayer player, final @NotNull AimFrame frame) {
+    private void notifySubscribers(
+            final @NotNull RCPPlayer player,
+            final @NotNull AimFrame frame
+    ) {
 
         for (final Subscription subscription : subscriptions) {
             if (subscription.interested().test(player)) {

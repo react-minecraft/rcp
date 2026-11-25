@@ -2,7 +2,7 @@ package com.g4vrk.react.inference.model.vector;
 
 import com.g4vrk.react.api.rcp.environment.RCPEnvironment;
 import com.g4vrk.react.api.rcp.player.RCPPlayer;
-import com.g4vrk.react.inference.http.model.HttpRequest;
+import com.g4vrk.react.inference.http.model.InferencePayload;
 import com.g4vrk.react.inference.model.AimModel;
 import com.g4vrk.react.inference.model.ModelAnswer;
 import com.g4vrk.react.inference.model.ModelId;
@@ -22,12 +22,15 @@ import org.jetbrains.annotations.NotNull;
 public final class VectorModel implements AimModel {
 
     private static final ModelId ID = ModelId.VECTOR_PREVIEW;
+    private static final Map<String, String> HEADERS = Map.of("X-Batch", "1");
 
     private final RequestDispatcher dispatcher;
     private final AimStreamService stream;
 
     /**
-     * @param combatTicks how long a player counts as fighting after an attack, from {@code models/vector.yml}
+     * @param environment RCP environment
+     * @param dispatcher  request dispatcher
+     * @param combatTicks how many ticks a player counts as fighting after an attack, from {@code models/vector.yml}
      */
     public VectorModel(
             final @NotNull RCPEnvironment environment,
@@ -63,20 +66,29 @@ public final class VectorModel implements AimModel {
     }
 
     @Override
-    public void onAttack(final @NotNull RCPPlayer player, final int targetEntityId) {
+    public void onAttack(
+            final @NotNull RCPPlayer player,
+            final int targetEntityId
+    ) {
 
         stream.onAttack(player, targetEntityId);
 
     }
 
     @Override
-    public void onRotation(final @NotNull RCPPlayer player, final float @NotNull [] sample) {
+    public void onRotation(
+            final @NotNull RCPPlayer player,
+            final float @NotNull [] sample
+    ) {
 
         stream.onRotation(player, sample);
 
     }
 
-    private void onFrame(final @NotNull RCPPlayer player, final @NotNull AimSession session) {
+    private void onFrame(
+            final @NotNull RCPPlayer player,
+            final @NotNull AimSession session
+    ) {
 
         if (!session.combatActivity.isActive()) {
             return;
@@ -96,9 +108,9 @@ public final class VectorModel implements AimModel {
                 player,
                 this,
                 claim,
-                token -> new HttpRequest(
+                token -> new InferencePayload(
                         FrameCodec.encodeBatch(snapshot, name, token),
-                        Map.of("X-Batch", "1")
+                        HEADERS
                 )
         );
 
@@ -141,6 +153,13 @@ public final class VectorModel implements AimModel {
     public void removePlayer(final @NotNull UUID player) {
 
         stream.removePlayerData(player);
+
+    }
+
+    @Override
+    public void shutdown() {
+
+        stream.shutdown();
 
     }
 

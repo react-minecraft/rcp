@@ -21,11 +21,17 @@ public interface AimModel {
      * <p>{@code sample} holds one rotation laid out as {@link RotationSample} documents; the plugin
      * reuses it, so copy it to keep the values.</p>
      */
-    default void onRotation(final @NotNull RCPPlayer player, final float @NotNull [] sample) {
+    default void onRotation(
+            final @NotNull RCPPlayer player,
+            final float @NotNull [] sample
+    ) {
 
     }
 
-    default void onAttack(final @NotNull RCPPlayer player, final int targetEntityId) {
+    default void onAttack(
+            final @NotNull RCPPlayer player,
+            final int targetEntityId
+    ) {
 
     }
 
@@ -40,19 +46,30 @@ public interface AimModel {
      * The server or key changed: windows collected so far no longer apply.
      */
     default void clearHistory(final @NotNull UUID player) {
+
     }
 
     /**
      * The player's transient state is reset.
      */
     default void resetPlayer(final @NotNull UUID player) {
+
     }
 
     /**
      * The player left; everything kept for them is dropped.
      */
     default void removePlayer(final @NotNull UUID player) {
+
         resetPlayer(player);
+
+    }
+
+    /**
+     * Releases any player state or subscriptions retained by this model on shutdown.
+     */
+    default void shutdown() {
+
     }
 
 }

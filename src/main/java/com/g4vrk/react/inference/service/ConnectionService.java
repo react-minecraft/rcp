@@ -5,6 +5,7 @@ import com.g4vrk.react.inference.config.ActionsConfig;
 import com.g4vrk.react.inference.config.InferenceConfigRegistry;
 import com.g4vrk.react.inference.link.Credential;
 import com.g4vrk.react.inference.link.LinkStore;
+import com.g4vrk.react.inference.server.AccountClient;
 import com.g4vrk.react.inference.server.InferenceServer;
 import com.g4vrk.schedula.task.TickSchedule;
 import java.io.IOException;
@@ -18,8 +19,8 @@ import org.spongepowered.configurate.yaml.YamlConfigurationLoader;
 
 /**
  * The link to the site: the stored credential, the {@link InferenceServer} built from it and the RCP status.
- * <p>
- * A reload builds a new server with the new timeouts and texts and hands it to whoever listens.
+ *
+ * <p>A reload builds a new server with the new timeouts and texts and hands it to whoever listens.</p>
  */
 public final class ConnectionService {
 
@@ -33,11 +34,14 @@ public final class ConnectionService {
     private Consumer<InferenceServer> onReplaced = server -> { };
     private volatile ActionsConfig.TextSet texts;
     private volatile InferenceServer server;
-    private boolean closed;
+    private volatile boolean closed;
     private long statusRevision;
 
-    public ConnectionService(final @NotNull RCPEnvironment environment, final @NotNull InferenceConfigRegistry configs)
-            throws IOException {
+    public ConnectionService(
+            final @NotNull RCPEnvironment environment,
+            final @NotNull InferenceConfigRegistry configs
+    ) throws IOException {
+
         this.environment = environment;
         this.logger = environment.logger();
         this.fingerprint = environment.platform().serverFingerprint();
@@ -45,6 +49,7 @@ public final class ConnectionService {
         migrateLegacyToken();
         this.texts = configs.actions().texts();
         this.server = newServer(configs);
+
     }
 
     public @NotNull InferenceServer server() {
@@ -59,13 +64,16 @@ public final class ConnectionService {
 
     }
 
-    public synchronized void link(final @NotNull InferenceServer source, final @NotNull InferenceServer.ConnectResult result) throws IOException {
+    public synchronized void link(
+            final @NotNull InferenceServer source,
+            final @NotNull AccountClient.ConnectResult result
+    ) throws IOException {
 
         if (closed || source != server) {
             throw new IllegalStateException("The link attempt was replaced by a reload or shutdown");
         }
         synchronized (source) {
-            if (!source.isCurrentLogin(result.attempt()) || result.credential() == null) {
+            if (!source.account().isCurrentLogin(result.attempt()) || result.credential() == null) {
                 throw new IllegalStateException("The link attempt was replaced");
             }
             linkStore.save(result.credential());
@@ -77,6 +85,9 @@ public final class ConnectionService {
 
     public synchronized void reload(final @NotNull InferenceConfigRegistry configs) throws IOException {
 
+        if (closed) {
+            return;
+        }
         texts = configs.actions().texts();
         final InferenceServer previous = server;
         server = newServer(configs);
@@ -109,7 +120,7 @@ public final class ConnectionService {
             status(revision, currentTexts.status(false, current.enabledModels()));
             return;
         }
-        current.checkConnection().whenComplete((result, failure) -> {
+        current.account().checkConnection().whenComplete((result, failure) -> {
             if (failure != null) {
                 status(revision, String.valueOf(failure.getMessage()));
             } else if (result.problem() != null) {
@@ -121,8 +132,16 @@ public final class ConnectionService {
 
     }
 
-    private void status(final long revision, final String status) {
+    private void status(
+            final long revision,
+            final @NotNull String status
+    ) {
 
+        synchronized (this) {
+            if (closed || statusRevision != revision) {
+                return;
+            }
+        }
         environment.scheduler().schedule(() -> {
             synchronized (this) {
                 if (!closed && statusRevision == revision) {
@@ -133,7 +152,7 @@ public final class ConnectionService {
 
     }
 
-    private InferenceServer newServer(final InferenceConfigRegistry configs) throws IOException {
+    private @NotNull InferenceServer newServer(final @NotNull InferenceConfigRegistry configs) throws IOException {
 
         return new InferenceServer(
                 logger,
