@@ -47,7 +47,7 @@ public final class InferenceServer {
     private static final String CHECK_PATH = "/api/v1/auth/check";
     private static final String RCP_VERSION_HEADER = "X-React-RCP-Version";
     private static final String PLUGIN_VERSION_HEADER = "X-Plugin-Version";
-    private static final long MODEL_REFRESH_MILLIS = 60_000L;
+    private static final long MODEL_REFRESH_NANOS = TimeUnit.SECONDS.toNanos(60L);
     private static final LimitedBodyHandler BODY_HANDLER = new LimitedBodyHandler(64 * 1024);
     private static final Method HTTP_CLIENT_SHUTDOWN_NOW = findShutdownMethod();
 
@@ -62,7 +62,7 @@ public final class InferenceServer {
 
     private volatile @Nullable Credential credential;
     private volatile Set<ModelId> enabledModels = Set.of();
-    private final AtomicLong nextModelRefresh = new AtomicLong();
+    private final AtomicLong nextModelRefresh = new AtomicLong(System.nanoTime());
 
     private final AtomicBoolean closed = new AtomicBoolean();
     private final AtomicLong requestEpoch = new AtomicLong();
@@ -125,7 +125,7 @@ public final class InferenceServer {
 
         credential = linked;
         enabledModels = Set.of();
-        nextModelRefresh.set(0L);
+        nextModelRefresh.set(System.nanoTime());
         requestEpoch.incrementAndGet();
 
     }
@@ -177,9 +177,9 @@ public final class InferenceServer {
 
     private void refreshModelsIfDue() {
 
-        final long now = System.currentTimeMillis();
+        final long now = System.nanoTime();
         final long next = nextModelRefresh.get();
-        if (now < next || !nextModelRefresh.compareAndSet(next, now + MODEL_REFRESH_MILLIS)) {
+        if (now - next < 0L || !nextModelRefresh.compareAndSet(next, now + MODEL_REFRESH_NANOS)) {
             return;
         }
         if (credential == null || closed.get()) {
@@ -256,7 +256,7 @@ public final class InferenceServer {
                 final Set<ModelId> models = readEnabledModels(json);
                 publishIfCurrent(epoch, () -> {
                     enabledModels = models;
-                    nextModelRefresh.set(System.currentTimeMillis() + MODEL_REFRESH_MILLIS);
+                    nextModelRefresh.set(System.nanoTime() + MODEL_REFRESH_NANOS);
                 });
                 return new ConnectionState(String.valueOf(json.get("server")), readModelStates(json), null);
             } catch (final RuntimeException exception) {
@@ -362,7 +362,7 @@ public final class InferenceServer {
                     body,
                     keys,
                     interval,
-                    System.currentTimeMillis() + expiresIn.longValue() * 1000L
+                    System.nanoTime() + TimeUnit.SECONDS.toNanos(Math.max(1L, expiresIn.longValue()))
             );
         });
 
@@ -373,13 +373,13 @@ public final class InferenceServer {
             final Map<String, Object> body,
             final KeyPair keys,
             final long intervalSeconds,
-            final long deadlineMillis
+            final long deadlineNanos
     ) {
 
         if (attempt != deviceLogin.get() || closed.get()) {
             return CompletableFuture.completedFuture(ConnectResult.refused(reasons.replaced()));
         }
-        if (System.currentTimeMillis() > deadlineMillis) {
+        if (System.nanoTime() - deadlineNanos > 0L) {
             return CompletableFuture.completedFuture(ConnectResult.refused(reasons.expired()));
         }
         return CompletableFuture.runAsync(() -> { }, CompletableFuture.delayedExecutor(intervalSeconds, TimeUnit.SECONDS))
@@ -392,7 +392,7 @@ public final class InferenceServer {
                 .thenCompose(response -> response == null || attempt != deviceLogin.get() || closed.get()
                         ? CompletableFuture.completedFuture(ConnectResult.refused(reasons.replaced()))
                         : response.statusCode() == 202
-                        ? pollDeviceLogin(attempt, body, keys, intervalSeconds, deadlineMillis)
+                        ? pollDeviceLogin(attempt, body, keys, intervalSeconds, deadlineNanos)
                         : CompletableFuture.completedFuture(connectResult(response, keys, attempt)));
 
     }
@@ -434,6 +434,11 @@ public final class InferenceServer {
 
         final CompletableFuture<HttpResponse<byte[]>> call = client.sendAsync(withTimeout(builder).build(), BODY_HANDLER);
         inFlight.add(call);
+        if (closed.get()) {
+            call.cancel(true);
+            inFlight.remove(call);
+            throw new IllegalStateException("The inference client is closed");
+        }
         call.whenComplete((response, failure) -> inFlight.remove(call));
         return call;
 
