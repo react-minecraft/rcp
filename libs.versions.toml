@@ -9,7 +9,7 @@ lombok = "1.18.48"
 flatbuffers = "25.2.10"
 
 configurate = "4.2.0"
-actions = "2.2.1"
+actions = "2.2.2"
 schedula = "2.0.1"
 textserializer = "1.2.1"
 
