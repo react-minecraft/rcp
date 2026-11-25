@@ -13,6 +13,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.function.Consumer;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.spongepowered.configurate.ConfigurateException;
 import org.spongepowered.configurate.yaml.YamlConfigurationLoader;
@@ -30,6 +31,7 @@ public final class ConnectionService {
     private final Logger logger;
     private final String fingerprint;
     private final LinkStore linkStore;
+    private final @Nullable Credential localCredential;
 
     private Consumer<InferenceServer> onReplaced = server -> { };
     private volatile ActionsConfig.TextSet texts;
@@ -46,7 +48,10 @@ public final class ConnectionService {
         this.logger = environment.logger();
         this.fingerprint = environment.platform().serverFingerprint();
         this.linkStore = new LinkStore(environment.directory().resolve(".link"), fingerprint);
-        migrateLegacyToken();
+        this.localCredential = InferenceServer.localCredential();
+        if (localCredential == null) {
+            migrateLegacyToken();
+        }
         this.texts = configs.actions().texts();
         this.server = newServer(configs);
 
@@ -71,6 +76,9 @@ public final class ConnectionService {
 
         if (closed || source != server) {
             throw new IllegalStateException("The link attempt was replaced by a reload or shutdown");
+        }
+        if (localCredential != null) {
+            throw new IllegalStateException("Local backend credentials are set by react.api.token");
         }
         synchronized (source) {
             if (!source.account().isCurrentLogin(result.attempt()) || result.credential() == null) {
@@ -158,7 +166,7 @@ public final class ConnectionService {
                 logger,
                 configs.connection().timeouts().connect(),
                 configs.connection().timeouts().call(),
-                linkStore.load(),
+                localCredential == null ? linkStore.load() : localCredential,
                 fingerprint,
                 environment.metadata().version(),
                 environment.platform().pluginVersion(),

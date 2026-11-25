@@ -38,7 +38,8 @@ import org.slf4j.Logger;
  */
 public final class InferenceServer {
 
-    public static final String BASE_URL = RCPAPI.API_URL;
+    private static final @Nullable String LOCAL_TOKEN = setting("react.api.token");
+    public static final String BASE_URL = baseUrl();
 
     private static final String MODEL_PATH = "/api/v2/inference/";
     private static final String RCP_VERSION_HEADER = "X-React-RCP-Version";
@@ -110,6 +111,54 @@ public final class InferenceServer {
         return baseUrl.regionMatches(true, 0, "http:", 0, 5)
                 ? HttpClient.Version.HTTP_1_1
                 : HttpClient.Version.HTTP_2;
+
+    }
+
+    /**
+     * Returns the process credential for an explicitly configured loopback backend.
+     */
+    public static @Nullable Credential localCredential() {
+
+        return LOCAL_TOKEN == null ? null : Credential.unsigned(LOCAL_TOKEN.strip());
+
+    }
+
+    private static @NotNull String baseUrl() {
+
+        final String environmentUrl = System.getenv("react.api.url");
+        if (environmentUrl == null && LOCAL_TOKEN == null) {
+            return RCPAPI.API_URL;
+        }
+        final String url = environmentUrl == null ? System.getProperty("react.api.url") : environmentUrl;
+        if (url == null || LOCAL_TOKEN == null || LOCAL_TOKEN.isBlank()) {
+            throw new IllegalArgumentException("Set both react.api.url and react.api.token for the local backend");
+        }
+        if (!LOCAL_TOKEN.strip().matches("[A-Za-z0-9_.:-]+")) {
+            throw new IllegalArgumentException("Invalid react.api.token");
+        }
+        final URI origin;
+        try {
+            origin = URI.create(url.strip());
+        } catch (final IllegalArgumentException ignored) {
+            throw new IllegalArgumentException("react.api.url must be a loopback HTTP or HTTPS origin");
+        }
+        final String host = origin.getHost();
+        if (!"127.0.0.1".equals(host) && !"[::1]".equals(host)) {
+            throw new IllegalArgumentException("react.api.url must use 127.0.0.1 or [::1] with a process token");
+        }
+        if (!("http".equalsIgnoreCase(origin.getScheme()) || "https".equalsIgnoreCase(origin.getScheme()))
+                || origin.getUserInfo() != null || origin.getQuery() != null || origin.getFragment() != null
+                || !origin.getPath().isEmpty() && !"/".equals(origin.getPath())) {
+            throw new IllegalArgumentException("react.api.url must be a loopback HTTP or HTTPS origin");
+        }
+        return url.strip().replaceFirst("/$", "");
+
+    }
+
+    private static @Nullable String setting(final @NotNull String name) {
+
+        final String value = System.getenv(name);
+        return value == null ? System.getProperty(name) : value;
 
     }
 

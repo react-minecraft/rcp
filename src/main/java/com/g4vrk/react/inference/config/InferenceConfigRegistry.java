@@ -173,7 +173,8 @@ public record InferenceConfigRegistry(
 
     private static @NotNull String language() {
 
-        final String language = System.getProperty("user.language", "ru").toLowerCase(Locale.ROOT);
+        final String override = System.getenv("react.language");
+        final String language = (override == null ? System.getProperty("react.language", System.getProperty("user.language", "ru")) : override).strip().toLowerCase(Locale.ROOT);
         return language.equals("en") ? "en" : "ru";
 
     }
