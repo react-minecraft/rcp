@@ -92,13 +92,23 @@ public final class InferenceServer {
         this.rcpVersion = rcpVersion;
         this.pluginVersion = pluginVersion;
         /*
-         * The access token must never follow a redirect to another host.
+         * The access token must never follow a redirect to another host, and plain HTTP
+         * backends reject Java's default h2c upgrade attempt on POST requests.
          */
         this.client = HttpClient.newBuilder()
                 .connectTimeout(connectTimeout)
+                .version(httpVersionFor(BASE_URL))
                 .followRedirects(HttpClient.Redirect.NEVER)
                 .build();
         this.modelUrls = modelUrls();
+
+    }
+
+    public static @NotNull HttpClient.Version httpVersionFor(final @NotNull String baseUrl) {
+
+        return baseUrl.regionMatches(true, 0, "http:", 0, 5)
+                ? HttpClient.Version.HTTP_1_1
+                : HttpClient.Version.HTTP_2;
 
     }
 
