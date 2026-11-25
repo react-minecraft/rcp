@@ -56,6 +56,9 @@ public final class AimState {
             final float rawPitch
     ) {
 
+        if (!Float.isFinite(rawYaw) || !Float.isFinite(rawPitch)) {
+            throw new IllegalArgumentException("Non-finite rotation sample");
+        }
         synchronized (lock) {
             final float yaw = MouseMath.normalizeAngle(rawYaw);
             final float pitch = Math.max(-90.0f, Math.min(90.0f, rawPitch));

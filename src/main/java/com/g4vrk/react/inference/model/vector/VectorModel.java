@@ -120,14 +120,20 @@ public final class VectorModel implements AimModel {
     @Override
     public void clearHistory(final @NotNull UUID player) {
 
-        stream.claimPlayerData(player).clearHistory();
+        final AimSession session = stream.findPlayerData(player);
+        if (session != null) {
+            session.clearHistory();
+        }
 
     }
 
     @Override
     public void resetPlayer(final @NotNull UUID player) {
 
-        stream.claimPlayerData(player).reset();
+        final AimSession session = stream.findPlayerData(player);
+        if (session != null) {
+            session.reset();
+        }
 
     }
 

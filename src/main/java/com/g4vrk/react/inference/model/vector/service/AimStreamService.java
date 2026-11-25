@@ -14,6 +14,7 @@ import com.g4vrk.react.inference.model.vector.session.AimState;
 import com.g4vrk.schedula.task.TickSchedule;
 import com.g4vrk.schedula.task.scheduler.TaskScheduler;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 import java.util.Map;
@@ -59,6 +60,12 @@ public final class AimStreamService {
     public void combatTicks(final long combatTicks) {
 
         this.combatTicks = Math.max(1L, combatTicks);
+
+    }
+
+    public @Nullable AimSession findPlayerData(final @NotNull UUID uuid) {
+
+        return playerData.get(uuid);
 
     }
 
@@ -121,6 +128,9 @@ public final class AimStreamService {
         }
         final float yaw = RotationSample.yaw(sample, 0);
         final float pitch = RotationSample.pitch(sample, 0);
+        if (!Float.isFinite(yaw) || !Float.isFinite(pitch)) {
+            return;
+        }
         scheduler.scheduleEntity(player.platform(), () -> capture(player, data, state, yaw, pitch), CAPTURE_SCHEDULE);
 
     }

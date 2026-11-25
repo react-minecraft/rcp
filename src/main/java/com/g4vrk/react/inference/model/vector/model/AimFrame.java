@@ -70,6 +70,28 @@ public final class AimFrame {
 
     public @NotNull float[] inferenceFeatures() {
 
+        return resolveInferenceFeatures().clone();
+
+    }
+
+    /**
+     * Copies quantization-aligned inference features directly without cloning an intermediate array.
+     *
+     * @param target destination flat feature array
+     * @param offset starting index in {@code target}
+     */
+    public void copyInferenceFeaturesTo(
+            final float @NotNull [] target,
+            final int offset
+    ) {
+
+        final float[] inputs = resolveInferenceFeatures();
+        System.arraycopy(inputs, 0, target, offset, inputs.length);
+
+    }
+
+    private float[] resolveInferenceFeatures() {
+
         float[] inputs = inferenceFeatures;
         if (inputs == null) {
             inputs = new float[INFERENCE_FEATURE_COUNT];
@@ -78,7 +100,7 @@ public final class AimFrame {
             }
             inferenceFeatures = inputs;
         }
-        return inputs.clone();
+        return inputs;
 
     }
 
